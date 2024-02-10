@@ -4,18 +4,11 @@ from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
 
-# Load environment variables from .env file if running locally
-if st._is_running_with_streamlit:
-    st.secrets = lambda: None  # Define st.secrets for local testing
-else:
-    load_dotenv()
+# Load environment variables
+load_dotenv()
 
 # Configure Google GenerativeAI
-if st._is_running_with_streamlit:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-else:
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # Prompt for summarization
 prompt = """Welcome, Video Summarizer! Your task is to distill the essence of a given YouTube video transcript into a concise summary. Your summary should capture the key points and essential information, presented in bullet points, within a 250-word limit. Let's dive into the provided transcript and extract the vital details for our audience."""
