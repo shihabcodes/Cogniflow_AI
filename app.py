@@ -1,11 +1,7 @@
 import os
 import streamlit as st
-from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
-
-# Load environment variables
-load_dotenv()
 
 # Configure Google GenerativeAI
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
