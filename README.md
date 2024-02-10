@@ -11,7 +11,7 @@ Gemini YouTube Transcript Summarizer is a Python-based application that utilizes
 
 ## Screenshot
 
-![Gemini YouTube Transcript Summarizer](screenshot.png)
+![Gemini YouTube Transcript Summarizer](images/YTGeminiSummarizer.png)
 
 ## Getting Started
 
