@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* thin scrollbars for the panels */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 8px;
+}
+
+/* markdown answers */
+.prose-answer p {
+  margin: 0.5rem 0;
+  line-height: 1.65;
+}
+.prose-answer ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.prose-answer li {
+  margin: 0.25rem 0;
+  line-height: 1.6;
+}
+.prose-answer code {
+  background: #1e293b;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}

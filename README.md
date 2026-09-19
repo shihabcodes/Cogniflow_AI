@@ -1,52 +1,76 @@
 # Cogniflow AI — ask your media, get cited answers
 
-**Cogniflow is a multimodal RAG (Retrieval-Augmented Generation) engine: ingest YouTube videos, podcasts, and PDFs, then query them in plain language and get answers with source citations.**
-
-**Status:** v1 shipped and working (YouTube transcript summarizer — see below). v2 — the full multimodal retrieval engine — is in active development.
+**NotebookLM-style retrieval-augmented generation (RAG), in your browser.** Add YouTube videos, podcasts, PDFs, or pasted notes as sources, then ask questions — every claim in the answer carries a citation chip that links back to the exact moment in the video.
 
 ```
-v1  ✅ YouTube → transcript → structured summary          (live, this repo)
-v2  🚧 Podcast audio ingestion (auto-transcribe)          (building)
-v2  🚧 PDF ingestion with real-time document parsing      (building)
-v2  🚧 Chunking + vector retrieval, tuned for <10s answers (building)
-v2  🚧 Citation UI — every answer links back to its source (building)
+add source ──► ingest ──► chunk ──► embed (Gemini) ──► vectors in your browser
+                                                                    │
+ask ──► embed question ──► cosine top-k ──► grounded Gemini answer ─┘
+                                          with [n] citation chips ──► deep-links
 ```
 
-## v1 — what works today
+## Features
 
-Paste any YouTube link → Cogniflow pulls the transcript (via `youtube-transcript-api`), sends it to Google's Gemini with a summarization prompt, and returns a concise, structured summary with key insights — inside a Streamlit UI.
+- **Four source types** — YouTube links (transcript with timestamps), PDFs (text extraction), audio files (Gemini-native transcription), pasted text
+- **Cited answers** — the model must ground every claim in `[n]` citations; chips link to the source, and for YouTube to the *exact second* (`&t=`)
+- **Local-first storage** — sources, chunks, and embeddings live in your browser's IndexedDB; only small excerpts are sent to the model when you ask
+- **Retrieval quality matters** — paragraph-aware chunking with overlap, `RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY` task-typed embeddings, top-k cosine search
+- **Honest refusal** — if the sources don't contain the answer, the model says so instead of inventing one
 
-![Cogniflow v1](images/YTGeminiSummarizer.png)
+## Tech stack
 
-## Run v1 locally
+Next.js 15 (App Router) · TypeScript · Tailwind v4 · Gemini (`@google/genai` — `gemini-2.5-flash` + `gemini-embedding-001`) · `youtube-transcript` · `unpdf` · IndexedDB (`idb`)
+
+## Run locally
 
 ```bash
 git clone https://github.com/shihabcodes/Cogniflow_AI && cd Cogniflow_AI
-pip install -r requirements.txt
-echo "GOOGLE_API_KEY=your_key_here" > .env
-streamlit run app.py        # → http://localhost:8501
+npm install
+cp .env.example .env.local    # add your key from https://aistudio.google.com/apikey
+npm run dev                   # → http://localhost:3000
 ```
 
-## v2 architecture (in development)
+Sanity-check the retrieval core without an API key:
 
-```
-ingest (YouTube | audio | PDF)
-        │
-        ▼
-normalize → chunk → embed → vector store
-        │
-        ▼
-query → retrieve top-k → Gemini (grounded prompt)
-        │
-        ▼
-answer + source citations (chunk-level links)
+```bash
+npm run selftest
 ```
 
-The hard parts being worked through: chunk-size vs. retrieval-quality tradeoffs, keeping end-to-end latency under 10 seconds on long transcripts, and citation granularity fine enough to be trustworthy.
+## Deploy to Vercel
 
-## Why this project exists
+1. Push the repo → import it at [vercel.com/new](https://vercel.com/new)
+2. Add environment variable `GOOGLE_API_KEY` (from Google AI Studio)
+3. Deploy — no database needed; storage is client-side
 
-Every creator, student, and researcher sits on hours of content they can't search. Cogniflow turns that pile into a queryable knowledge base — the same way you'd ask a colleague who watched everything.
+Notes: Vercel's request-size cap means PDFs up to ~4 MB and audio up to ~15 MB locally (smaller on Vercel). Multi-notebook persistence and server-side vector storage are on the roadmap.
+
+## Architecture
+
+```
+app/
+  api/youtube/route.ts   transcript fetch (+ timestamps) → chunked
+  api/pdf/route.ts       text extraction (unpdf)
+  api/audio/route.ts     Gemini-native transcription
+  api/embed/route.ts     Gemini embeddings (task-typed)
+  api/ask/route.ts       grounded generation with [n] citation contract
+lib/
+  chunk.ts               paragraph-aware chunking + transcript grouping
+  vector.ts              cosine similarity + top-k
+  store.ts               IndexedDB persistence (sources, chunks, vectors)
+  citations.ts           answer → citation chips
+```
+
+## Roadmap
+
+- [ ] Multiple named notebooks
+- [ ] Optional Supabase persistence (sync across devices)
+- [ ] Long-audio support via Files API (currently ~15 MB inline limit)
+- [ ] Answer streaming
+- [ ] Export answers with citations to Markdown
+
+## History
+
+Cogniflow started as a single-file YouTube summarizer (Streamlit + Gemini) — it still lives, archived, in [`legacy-streamlit/`](legacy-streamlit/).
 
 ## License
 
