@@ -1,2 +1,18 @@
+# python legacy app
 venv/
+__pycache__/
+
+# env
 .env
+.env*.local
+
+# node / next
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# misc
+.DS_Store
+npm-debug.log*
