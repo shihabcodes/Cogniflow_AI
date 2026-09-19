@@ -43,7 +43,13 @@ export async function POST(req: Request) {
     );
     return NextResponse.json({ answer });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Answer generation failed.";
+    let message = err instanceof Error ? err.message : "Answer generation failed.";
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed?.error?.message) message = parsed.error.message;
+    } catch {
+      // not JSON
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
