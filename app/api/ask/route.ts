@@ -14,10 +14,14 @@ Rules:
 
 export async function POST(req: Request) {
   try {
-    const { question, chunks } = (await req.json()) as {
+    const headerKey = req.headers.get("x-gemini-key") || undefined;
+    const { question, chunks, apiKey: bodyKey } = (await req.json()) as {
       question?: string;
       chunks?: RetrievedChunk[];
+      apiKey?: string;
     };
+    const effectiveKey = headerKey || bodyKey;
+
     if (!question?.trim())
       return NextResponse.json({ error: "Missing question." }, { status: 400 });
     if (!chunks?.length)
@@ -34,7 +38,8 @@ export async function POST(req: Request) {
 
     const answer = await answerWith(
       SYSTEM,
-      `Source excerpts:\n\n${context}\n\n---\n\nQuestion: ${question.trim()}`
+      `Source excerpts:\n\n${context}\n\n---\n\nQuestion: ${question.trim()}`,
+      effectiveKey
     );
     return NextResponse.json({ answer });
   } catch (err) {

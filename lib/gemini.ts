@@ -3,11 +3,11 @@ import { GoogleGenAI } from "@google/genai";
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
 const ANSWER_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-export function getAI(): GoogleGenAI {
-  const apiKey = process.env.GOOGLE_API_KEY;
+export function getAI(customKey?: string): GoogleGenAI {
+  const apiKey = customKey?.trim() || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "GOOGLE_API_KEY is not configured. Set it in .env.local (local) or your Vercel project environment variables."
+      "No Gemini API key found. Set GOOGLE_API_KEY in your environment or enter your key in Settings."
     );
   }
   return new GoogleGenAI({ apiKey });
@@ -15,9 +15,10 @@ export function getAI(): GoogleGenAI {
 
 export async function embedTexts(
   texts: string[],
-  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"
+  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
+  apiKey?: string
 ): Promise<number[][]> {
-  const ai = getAI();
+  const ai = getAI(apiKey);
   const vectors = await Promise.all(
     texts.map(async (t) => {
       const res = await ai.models.embedContent({
@@ -35,9 +36,10 @@ export async function embedTexts(
 
 export async function answerWith(
   systemInstruction: string,
-  prompt: string
+  prompt: string,
+  apiKey?: string
 ): Promise<string> {
-  const ai = getAI();
+  const ai = getAI(apiKey);
   const res = await ai.models.generateContent({
     model: ANSWER_MODEL,
     contents: prompt,
@@ -48,9 +50,10 @@ export async function answerWith(
 
 export async function transcribeAudio(
   base64: string,
-  mimeType: string
+  mimeType: string,
+  apiKey?: string
 ): Promise<string> {
-  const ai = getAI();
+  const ai = getAI(apiKey);
   const res = await ai.models.generateContent({
     model: ANSWER_MODEL,
     contents: [
@@ -68,4 +71,46 @@ export async function transcribeAudio(
     ],
   });
   return res.text ?? "";
+}
+
+export async function transcribeYouTube(
+  videoId: string,
+  apiKey?: string
+): Promise<string> {
+  const ai = getAI(apiKey);
+  const res = await ai.models.generateContent({
+    model: ANSWER_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            fileData: {
+              fileUri: `https://www.youtube.com/watch?v=${videoId}`,
+              mimeType: "video/mp4",
+            },
+          },
+          {
+            text: `Please generate a comprehensive, timestamped transcript or detailed chronological outline of this video.
+Format your output with timestamps at the beginning of each paragraph or topic change, like this:
+[00:00] Introduction and overview of the topic...
+[01:15] Deep dive into the first concept...
+[03:45] Practical examples and demonstrations...
+
+Include all key spoken points, discussions, and concepts covered. Do not include introductory commentary or meta text, only the timestamped transcript.`,
+          },
+        ],
+      },
+    ],
+  });
+  return res.text ?? "";
+}
+
+export async function testApiKey(apiKey?: string): Promise<{ ok: boolean; model: string }> {
+  const ai = getAI(apiKey);
+  const res = await ai.models.generateContent({
+    model: ANSWER_MODEL,
+    contents: "Hello, reply with 'OK' only.",
+  });
+  return { ok: !!res.text, model: ANSWER_MODEL };
 }

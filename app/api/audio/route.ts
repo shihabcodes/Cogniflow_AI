@@ -7,6 +7,7 @@ const ALLOWED = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a", "audio/m
 
 export async function POST(req: Request) {
   try {
+    const apiKey = req.headers.get("x-gemini-key") || undefined;
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File))
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
       );
 
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const transcript = await transcribeAudio(base64, mime);
+    const transcript = await transcribeAudio(base64, mime, apiKey);
     if (!transcript.trim())
       return NextResponse.json({ error: "Transcription came back empty." }, { status: 422 });
 

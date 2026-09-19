@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import SourcesPanel from "@/components/SourcesPanel";
 import ChatPanel, { type Message } from "@/components/ChatPanel";
+import SettingsModal from "@/components/SettingsModal";
 import { chunkText, CHUNK_TARGET_CHARS, CHUNK_OVERLAP_CHARS } from "@/lib/chunk";
 import { topK } from "@/lib/vector";
 import { deleteSource, loadSources, saveSource } from "@/lib/store";
@@ -14,20 +15,26 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     void loadSources().then((s) => {
       setSources(s);
       setLoaded(true);
     });
+    const savedKey = localStorage.getItem("cogniflow_gemini_key");
+    if (savedKey) setApiKey(savedKey);
   }, []);
+
+  const authHeaders: Record<string, string> = apiKey ? { "x-gemini-key": apiKey } : {};
 
   async function embedBatch(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"): Promise<number[][]> {
     const out: number[][] = [];
     for (let i = 0; i < texts.length; i += 48) {
       const res = await fetch("/api/embed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ texts: texts.slice(i, i + 48), taskType }),
       });
       const json = await res.json();
@@ -60,7 +67,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/youtube", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ url }),
       });
       const json = await res.json();
@@ -86,7 +93,11 @@ export default function Home() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`/api/${kind}`, { method: "POST", body: form });
+      const res = await fetch(`/api/${kind}`, {
+        method: "POST",
+        headers: { ...authHeaders },
+        body: form,
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `Failed to ingest ${kind}.`);
       const texts = chunkText(json.text as string);
@@ -130,7 +141,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/embed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ texts: [question], taskType: "RETRIEVAL_QUERY" }),
       });
       const json = await res.json();
@@ -152,7 +163,7 @@ export default function Home() {
 
       const askRes = await fetch("/api/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ question, chunks: retrieved }),
       });
       const askJson = await askRes.json();
@@ -189,14 +200,24 @@ export default function Home() {
           </h1>
           <p className="text-xs text-slate-500">Ask your videos, podcasts, and PDFs — cited answers, linked to the exact moment.</p>
         </div>
-        <a
-          href="https://github.com/shihabcodes/Cogniflow_AI"
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
-        >
-          ★ GitHub
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
+          >
+            <span>⚙</span>
+            <span>Settings</span>
+            {apiKey && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Custom key active" />}
+          </button>
+          <a
+            href="https://github.com/shihabcodes/Cogniflow_AI"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
+          >
+            ★ GitHub
+          </a>
+        </div>
       </header>
 
       {loaded && (
@@ -216,6 +237,20 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        apiKey={apiKey}
+        onSaveKey={(key) => {
+          setApiKey(key);
+          if (key) {
+            localStorage.setItem("cogniflow_gemini_key", key);
+          } else {
+            localStorage.removeItem("cogniflow_gemini_key");
+          }
+        }}
+      />
 
       <footer className="mt-2 text-center text-[11px] text-slate-600">
         chunks of ~{CHUNK_TARGET_CHARS} chars · {CHUNK_OVERLAP_CHARS} overlap · retrieval is top-{6} cosine over your browser-stored vectors
