@@ -1,7 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
-const ANSWER_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
+const FALLBACK_MODELS = [
+  DEFAULT_MODEL,
+  "gemini-3.6-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i) as string[];
 
 export function getAI(customKey?: string): GoogleGenAI {
   const apiKey = customKey?.trim() || process.env.GOOGLE_API_KEY;
@@ -11,6 +19,41 @@ export function getAI(customKey?: string): GoogleGenAI {
     );
   }
   return new GoogleGenAI({ apiKey });
+}
+
+// Helper to execute generateContent with automatic model fallback for deprecated/unavailable models
+async function generateWithFallback(
+  ai: GoogleGenAI,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  contents: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  config?: any
+): Promise<{ text?: string; modelUsed: string }> {
+  let lastError: unknown = null;
+  for (const model of FALLBACK_MODELS) {
+    try {
+      const res = await ai.models.generateContent({
+        model,
+        contents,
+        ...(config ? { config } : {}),
+      });
+      return { text: res.text, modelUsed: model };
+    } catch (err: unknown) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes("404") ||
+        msg.includes("no longer available") ||
+        msg.includes("NOT_FOUND") ||
+        msg.includes("not found")
+      ) {
+        console.warn(`Model ${model} unavailable (${msg}), attempting next candidate...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
 }
 
 export async function embedTexts(
@@ -40,11 +83,11 @@ export async function answerWith(
   apiKey?: string
 ): Promise<string> {
   const ai = getAI(apiKey);
-  const res = await ai.models.generateContent({
-    model: ANSWER_MODEL,
-    contents: prompt,
-    config: { systemInstruction, temperature: 0.2 },
-  });
+  const res = await generateWithFallback(
+    ai,
+    prompt,
+    { systemInstruction, temperature: 0.2 }
+  );
   return res.text ?? "";
 }
 
@@ -54,9 +97,9 @@ export async function transcribeAudio(
   apiKey?: string
 ): Promise<string> {
   const ai = getAI(apiKey);
-  const res = await ai.models.generateContent({
-    model: ANSWER_MODEL,
-    contents: [
+  const res = await generateWithFallback(
+    ai,
+    [
       {
         role: "user",
         parts: [
@@ -68,8 +111,8 @@ export async function transcribeAudio(
           },
         ],
       },
-    ],
-  });
+    ]
+  );
   return res.text ?? "";
 }
 
@@ -78,9 +121,9 @@ export async function transcribeYouTube(
   apiKey?: string
 ): Promise<string> {
   const ai = getAI(apiKey);
-  const res = await ai.models.generateContent({
-    model: ANSWER_MODEL,
-    contents: [
+  const res = await generateWithFallback(
+    ai,
+    [
       {
         role: "user",
         parts: [
@@ -101,16 +144,13 @@ Include all key spoken points, discussions, and concepts covered. Do not include
           },
         ],
       },
-    ],
-  });
+    ]
+  );
   return res.text ?? "";
 }
 
 export async function testApiKey(apiKey?: string): Promise<{ ok: boolean; model: string }> {
   const ai = getAI(apiKey);
-  const res = await ai.models.generateContent({
-    model: ANSWER_MODEL,
-    contents: "Hello, reply with 'OK' only.",
-  });
-  return { ok: !!res.text, model: ANSWER_MODEL };
+  const res = await generateWithFallback(ai, "Hello, reply with 'OK' only.");
+  return { ok: !!res.text, model: res.modelUsed };
 }
