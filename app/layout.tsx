@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cogniflow AI — ask your media",
+  title: "Cogniflow AI — The Intelligence Layer for Media & Docs",
   description:
-    "NotebookLM-style RAG: add YouTube videos, podcasts, and PDFs as sources, then ask questions and get answers with citations that link back to the exact moment.",
+    "Y Combinator-grade Multimodal RAG: Query YouTube videos, podcasts, PDFs, and notes with cited answers linked to the exact timestamp.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">{children}</body>
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased selection:bg-orange-500/30 selection:text-orange-200">
+        {children}
+      </body>
     </html>
   );
 }

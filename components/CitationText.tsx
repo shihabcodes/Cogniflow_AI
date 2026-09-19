@@ -5,7 +5,7 @@ import { parseCitations } from "@/lib/citations";
 import type { Citation } from "@/lib/types";
 
 /**
- * Renders a model answer: markdown for text, [n] markers become citation
+ * Renders a model answer: markdown for text, [n] markers become YC-themed citation
  * chips that link to the exact moment in a video (or show the source).
  */
 export default function CitationText({
@@ -17,7 +17,7 @@ export default function CitationText({
 }) {
   const tokens = parseCitations(answer);
   return (
-    <div className="prose-answer text-sm text-slate-200">
+    <div className="prose-answer">
       {tokens.map((t, i) =>
         t.kind === "text" ? (
           <ReactMarkdown key={i}>{t.value}</ReactMarkdown>
@@ -32,23 +32,32 @@ export default function CitationText({
 function CitationChip({ citation, n }: { citation?: Citation; n: number }) {
   if (!citation) {
     return (
-      <sup className="mx-0.5 rounded bg-slate-800 px-1 text-xs text-slate-400">[{n}]</sup>
+      <sup className="mx-0.5 inline-flex items-center rounded-md border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
+        [{n}]
+      </sup>
     );
   }
   const href =
     citation.videoId && citation.startTimeSec !== undefined
       ? `https://www.youtube.com/watch?v=${citation.videoId}&t=${citation.startTimeSec}s`
       : citation.sourceUrl;
+
+  const hasTimestamp = citation.videoId && citation.startTimeSec !== undefined;
+
   return (
     <a
       href={href ?? undefined}
       target="_blank"
       rel="noreferrer"
-      title={`${citation.sourceTitle}${citation.startTimeSec !== undefined ? ` — at ${formatTime(citation.startTimeSec)}` : ""}\n${citation.snippet.slice(0, 180)}…`}
-      className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-indigo-600/80 px-1.5 align-super text-[10px] font-semibold text-white hover:bg-indigo-500"
+      title={`${citation.sourceTitle}${hasTimestamp ? ` — at ${formatTime(citation.startTimeSec!)}` : ""}\n\n"${citation.snippet.slice(0, 180)}…"`}
+      className="group mx-0.5 inline-flex items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 align-super text-[10px] font-mono font-semibold text-orange-400 shadow-xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white"
     >
-      {n}
-      {citation.videoId && citation.startTimeSec !== undefined ? " ▸" : ""}
+      <span>[{n}]</span>
+      {hasTimestamp && (
+        <span className="opacity-75 group-hover:opacity-100">
+          {formatTime(citation.startTimeSec!)} ▸
+        </span>
+      )}
     </a>
   );
 }

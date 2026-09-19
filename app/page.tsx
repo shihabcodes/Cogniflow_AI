@@ -63,7 +63,7 @@ export default function Home() {
 
   async function handleAddYouTube(url: string) {
     setBusy("youtube");
-    setMessages((m) => [...m.slice(-20), { role: "assistant", text: "Ingesting video…" }]);
+    setMessages((m) => [...m.slice(-20), { role: "assistant", text: "Ingesting & indexing video…" }]);
     try {
       const res = await fetch("/api/youtube", {
         method: "POST",
@@ -192,37 +192,66 @@ export default function Home() {
   const hasSources = sources.some((s) => s.chunks.some((c) => c.vector));
 
   return (
-    <main className="mx-auto flex h-screen max-w-7xl flex-col p-4">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">
-            Cogniflow <span className="text-indigo-400">AI</span>
-          </h1>
-          <p className="text-xs text-slate-500">Ask your videos, podcasts, and PDFs — cited answers, linked to the exact moment.</p>
+    <main className="relative mx-auto flex h-screen max-w-7xl flex-col p-3 sm:p-4 md:p-6">
+      {/* Ambient background glow */}
+      <div className="pointer-events-none fixed inset-0 -z-10 flex justify-center">
+        <div className="h-[350px] w-[700px] rounded-full bg-gradient-to-b from-orange-500/10 via-amber-500/5 to-transparent blur-3xl opacity-80" />
+      </div>
+
+      {/* Modern YC Startup Header */}
+      <header className="mb-4 flex items-center justify-between border-b border-zinc-800/60 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF6600] to-[#E65C00] font-black text-white text-sm shadow-lg shadow-orange-500/25">
+            Y
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold tracking-tight text-zinc-100 sm:text-lg">
+                Cogniflow <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">AI</span>
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-mono font-semibold text-orange-400">
+                Not Backed by YC
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400 hidden sm:block">
+              The Intelligence Layer for Media & Documents — cited in real-time.
+            </p>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
+          {/* Operational Status Badge */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/80 px-2.5 py-1 text-[11px] font-mono text-zinc-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Operational</span>
+          </div>
+
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
+            className="group flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-orange-500/40 hover:bg-zinc-800 hover:text-white"
           >
             <span>⚙</span>
-            <span>Settings</span>
-            {apiKey && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Custom key active" />}
+            <span className="hidden sm:inline">Settings</span>
+            {apiKey && (
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-xs shadow-orange-500" title="Custom Gemini key active" />
+            )}
           </button>
+
           <a
             href="https://github.com/shihabcodes/Cogniflow_AI"
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-zinc-700 hover:bg-zinc-800 hover:text-white"
           >
-            ★ GitHub
+            <span>★</span>
+            <span className="hidden sm:inline">GitHub</span>
           </a>
         </div>
       </header>
 
       {loaded && (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[340px_1fr]">
-          <div className="min-h-0 max-lg:max-h-[45vh]">
+        <div className="grid min-h-0 flex-1 gap-3.5 lg:grid-cols-[380px_1fr]">
+          <div className="min-h-0 max-lg:max-h-[42vh]">
             <SourcesPanel
               sources={sources}
               busy={busy}
@@ -252,8 +281,17 @@ export default function Home() {
         }}
       />
 
-      <footer className="mt-2 text-center text-[11px] text-slate-600">
-        chunks of ~{CHUNK_TARGET_CHARS} chars · {CHUNK_OVERLAP_CHARS} overlap · retrieval is top-{6} cosine over your browser-stored vectors
+      <footer className="mt-2.5 flex items-center justify-between px-1 text-[11px] font-mono text-zinc-500">
+        <div>
+          <span>~{CHUNK_TARGET_CHARS} chars/chunk</span>
+          <span className="mx-1.5">·</span>
+          <span>{CHUNK_OVERLAP_CHARS} overlap</span>
+          <span className="mx-1.5">·</span>
+          <span>top-6 cosine</span>
+        </div>
+        <div className="hidden sm:block text-zinc-600">
+          Cogniflow AI · Proudly Not Backed by YC (Yet)
+        </div>
       </footer>
     </main>
   );
