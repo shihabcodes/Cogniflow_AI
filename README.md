@@ -1,40 +1,53 @@
-# Gemini YouTube Transcript Summarizer
+# Cogniflow AI — ask your media, get cited answers
 
-Gemini YouTube Transcript Summarizer is a Python-based application that utilizes the YouTube Transcript API for transcript extraction and Google's Gemini Pro GenerativeAI for automatic summarization. This Streamlit app allows users to input YouTube video links and receive detailed summaries, enhancing accessibility and efficiency in accessing video content insights.
+**Cogniflow is a multimodal RAG (Retrieval-Augmented Generation) engine: ingest YouTube videos, podcasts, and PDFs, then query them in plain language and get answers with source citations.**
 
-## Features
+**Status:** v1 shipped and working (YouTube transcript summarizer — see below). v2 — the full multimodal retrieval engine — is in active development.
 
-- Extracts transcripts from YouTube videos.
-- Summarizes transcripts into concise summaries using Google's Gemini Pro GenerativeAI.
-- Provides detailed notes with key insights and essential information.
-- User-friendly interface with easy input of YouTube video links.
+```
+v1  ✅ YouTube → transcript → structured summary          (live, this repo)
+v2  🚧 Podcast audio ingestion (auto-transcribe)          (building)
+v2  🚧 PDF ingestion with real-time document parsing      (building)
+v2  🚧 Chunking + vector retrieval, tuned for <10s answers (building)
+v2  🚧 Citation UI — every answer links back to its source (building)
+```
 
-## Screenshot
+## v1 — what works today
 
-![Gemini YouTube Transcript Summarizer](images/YTGeminiSummarizer.png)
+Paste any YouTube link → Cogniflow pulls the transcript (via `youtube-transcript-api`), sends it to Google's Gemini with a summarization prompt, and returns a concise, structured summary with key insights — inside a Streamlit UI.
 
-## Getting Started
+![Cogniflow v1](images/YTGeminiSummarizer.png)
 
-To run the application locally, follow these steps:
+## Run v1 locally
 
-1. Clone this repository to your local machine.
-2. Install the required Python dependencies listed in `requirements.txt` using `pip install -r requirements.txt`.
-3. Set up your Google API key by creating a `.env` file in the root directory and adding your key:
-4. Run the Streamlit app by executing the command `streamlit run app.py` in your terminal.
-5. Access the Streamlit app in your web browser at `http://localhost:8501`.
+```bash
+git clone https://github.com/shihabcodes/Cogniflow_AI && cd Cogniflow_AI
+pip install -r requirements.txt
+echo "GOOGLE_API_KEY=your_key_here" > .env
+streamlit run app.py        # → http://localhost:8501
+```
 
-## Dependencies
+## v2 architecture (in development)
 
-- `youtube_transcript_api`: Library for fetching transcripts from YouTube videos.
-- `streamlit`: Framework for building interactive web applications with Python.
-- `google_generativeai`: Library for accessing Google's Gemini Pro GenerativeAI.
-- `python_dotenv`: Library for loading environment variables from `.env` files.
-- `pathlib`: Library for handling file paths in an object-oriented way.
+```
+ingest (YouTube | audio | PDF)
+        │
+        ▼
+normalize → chunk → embed → vector store
+        │
+        ▼
+query → retrieve top-k → Gemini (grounded prompt)
+        │
+        ▼
+answer + source citations (chunk-level links)
+```
 
-## Contributing
+The hard parts being worked through: chunk-size vs. retrieval-quality tradeoffs, keeping end-to-end latency under 10 seconds on long transcripts, and citation granularity fine enough to be trustworthy.
 
-Contributions are welcome! Feel free to open an issue or submit a pull request with any improvements or bug fixes.
+## Why this project exists
+
+Every creator, student, and researcher sits on hours of content they can't search. Cogniflow turns that pile into a queryable knowledge base — the same way you'd ask a colleague who watched everything.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT — see [LICENSE](LICENSE).
