@@ -1,14 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 const FALLBACK_MODELS = [
   DEFAULT_MODEL,
-  "gemini-3.6-flash",
-  "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-1.5-pro",
 ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i) as string[];
 
 export function getAI(customKey?: string): GoogleGenAI {
@@ -21,7 +22,7 @@ export function getAI(customKey?: string): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-// Helper to execute generateContent with automatic model fallback for deprecated/unavailable models
+// Helper to execute generateContent with automatic model fallback for deprecated, unavailable, or overloaded models
 async function generateWithFallback(
   ai: GoogleGenAI,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,13 +70,21 @@ async function generateWithFallback(
         }
       }
 
+      // Check for deprecation, not found, high demand / overload (503), or rate limits (429)
       if (
         msg.includes("404") ||
         msg.includes("no longer available") ||
         msg.includes("NOT_FOUND") ||
-        msg.includes("not found")
+        msg.includes("not found") ||
+        msg.includes("503") ||
+        msg.includes("UNAVAILABLE") ||
+        msg.includes("high demand") ||
+        msg.includes("overloaded") ||
+        msg.includes("temporarily unavailable") ||
+        msg.includes("429") ||
+        msg.includes("RESOURCE_EXHAUSTED")
       ) {
-        console.warn(`Model ${model} unavailable (${msg}), attempting next candidate...`);
+        console.warn(`Model ${model} unavailable or overloaded (${msg}), attempting next candidate...`);
         continue;
       }
       throw err;
