@@ -41,6 +41,34 @@ async function generateWithFallback(
     } catch (err: unknown) {
       lastError = err;
       const msg = err instanceof Error ? err.message : String(err);
+
+      // If input tokens exceed 1M limit (common for videos > 1 hour), attempt gemini-1.5-pro (2M context window)
+      if (
+        msg.includes("exceeds the maximum number of tokens") ||
+        msg.includes("input token count exceeds")
+      ) {
+        console.warn(`Input token count exceeded for ${model}. Attempting 2M-token model (gemini-1.5-pro)...`);
+        try {
+          const proRes = await ai.models.generateContent({
+            model: "gemini-1.5-pro",
+            contents,
+            ...(config ? { config } : {}),
+          });
+          return { text: proRes.text, modelUsed: "gemini-1.5-pro" };
+        } catch (proErr: unknown) {
+          const proMsg = proErr instanceof Error ? proErr.message : String(proErr);
+          if (
+            proMsg.includes("exceeds the maximum number of tokens") ||
+            proMsg.includes("input token count exceeds")
+          ) {
+            throw new Error(
+              "This video is over 2 hours long and exceeds the token limit for direct AI video ingestion. Please copy the transcript from YouTube and paste it into the 'Text' tab to query it!"
+            );
+          }
+          throw proErr;
+        }
+      }
+
       if (
         msg.includes("404") ||
         msg.includes("no longer available") ||
