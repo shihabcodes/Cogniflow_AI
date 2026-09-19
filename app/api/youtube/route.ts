@@ -73,10 +73,32 @@ export async function POST(req: Request) {
           chunks = parseTimestampedTranscript(rawTranscript);
         }
       } catch (geminiErr) {
-        const geminiMsg = geminiErr instanceof Error ? geminiErr.message : "Gemini video understanding failed";
+        let geminiMsg = geminiErr instanceof Error ? geminiErr.message : "Gemini video understanding failed";
+        try {
+          const parsed = JSON.parse(geminiMsg);
+          if (parsed?.error?.message) {
+            geminiMsg = parsed.error.message;
+          }
+        } catch {
+          // not JSON
+        }
+
+        if (
+          geminiMsg.includes("exceeds the maximum number of tokens") ||
+          geminiMsg.includes("input token count exceeds") ||
+          geminiMsg.includes("too long")
+        ) {
+          return NextResponse.json(
+            {
+              error: "This video is very long (> 1 hour) for direct AI video ingestion, and YouTube blocked caption scraping from Vercel. Tip: Open this video on YouTube, click '... More' -> 'Show transcript', copy it, and paste it into the 'Text' tab to query it immediately!",
+            },
+            { status: 413 }
+          );
+        }
+
         return NextResponse.json(
           {
-            error: `Could not fetch transcript: YouTube blocked direct scraping (${scrapeError || "captions unavailable"}), and Gemini fallback failed: ${geminiMsg}. Check your Gemini API key in Settings.`,
+            error: `Could not fetch transcript: YouTube blocked direct scraping (${scrapeError || "captions unavailable"}), and Gemini fallback reported: ${geminiMsg}. Check your Gemini API key in Settings.`,
           },
           { status: 502 }
         );
