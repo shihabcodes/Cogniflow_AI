@@ -43,7 +43,7 @@ export default function SettingsModal({
       if (res.ok && data.ok) {
         setTestResult({
           ok: true,
-          message: `Key is valid! Connected to ${data.model || "Gemini"}.`,
+          message: `Key is active & verified! Connected to ${data.model || "Gemini 2.0"}.`,
         });
       } else {
         setTestResult({
@@ -73,27 +73,32 @@ export default function SettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="relative w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 shadow-2xl backdrop-blur-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-100">Settings & API Key</h2>
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-orange-500 text-[11px] font-black text-white">
+              Y
+            </span>
+            <h2 className="text-base font-bold text-zinc-100">API Configuration (BYOK)</h2>
+          </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
             ✕
           </button>
         </div>
 
-        <p className="mb-4 text-xs text-slate-400 leading-relaxed">
-          Provide your own Google Gemini API key (BYOK). Your key is stored{" "}
-          <strong className="text-slate-300">locally in your browser</strong> and used for video
-          transcription fallback, embeddings, and chat.
+        <p className="mb-4 text-xs text-zinc-400 leading-relaxed">
+          Provide your personal Google Gemini API key. Stored{" "}
+          <strong className="text-zinc-200">strictly in your browser memory</strong> and used for
+          multimodal video ingestion, embeddings, and real-time generation.
         </p>
 
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">
+            <label className="mb-1.5 block text-xs font-semibold text-zinc-300">
               Gemini API Key
             </label>
             <div className="relative flex items-center">
@@ -105,32 +110,37 @@ export default function SettingsModal({
                   setTestResult(null);
                 }}
                 placeholder="AIzaSy..."
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 pr-16 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 pr-16 text-sm text-zinc-200 placeholder-zinc-600 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
               />
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-2 text-xs text-slate-400 hover:text-slate-200"
+                className="absolute right-3 text-xs text-zinc-400 hover:text-zinc-200 font-medium"
               >
                 {showKey ? "Hide" : "Show"}
               </button>
             </div>
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 inline-block text-[11px] text-indigo-400 hover:underline"
-            >
-              Get a free API key at Google AI Studio →
-            </a>
+            <div className="mt-1.5 flex items-center justify-between">
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-orange-400 hover:text-orange-300 hover:underline"
+              >
+                Get free API key at Google AI Studio →
+              </a>
+              {apiKey && (
+                <span className="text-[10px] font-mono text-emerald-400">● Custom key active</span>
+              )}
+            </div>
           </div>
 
           {testResult && (
             <div
-              className={`rounded-lg p-2.5 text-xs ${
+              className={`rounded-xl p-3 text-xs ${
                 testResult.ok
-                  ? "border border-emerald-800/60 bg-emerald-950/40 text-emerald-300"
-                  : "border border-rose-800/60 bg-rose-950/40 text-rose-300"
+                  ? "border border-emerald-500/30 bg-emerald-950/40 text-emerald-300"
+                  : "border border-rose-500/30 bg-rose-950/40 text-rose-300"
               }`}
             >
               {testResult.ok ? "✓ " : "✗ "}
@@ -143,7 +153,7 @@ export default function SettingsModal({
               type="button"
               disabled={testing}
               onClick={handleTestKey}
-              className="flex-1 rounded-lg border border-slate-700 bg-slate-800 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+              className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800/80 py-2.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
             >
               {testing ? "Testing..." : "Test Key"}
             </button>
@@ -151,7 +161,7 @@ export default function SettingsModal({
               <button
                 type="button"
                 onClick={handleClear}
-                className="rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-950/50"
+                className="rounded-xl border border-red-500/30 bg-red-950/20 px-3.5 py-2.5 text-xs font-medium text-red-400 hover:bg-red-950/40 transition-all"
               >
                 Clear
               </button>
@@ -159,7 +169,7 @@ export default function SettingsModal({
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg bg-indigo-600 py-2 text-xs font-medium text-white hover:bg-indigo-500"
+              className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 hover:from-orange-600 hover:to-amber-600 active:scale-[0.99] transition-all"
             >
               Save Key
             </button>

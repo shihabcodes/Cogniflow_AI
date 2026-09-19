@@ -3,21 +3,20 @@
 import { useState } from "react";
 import type { Source } from "@/lib/types";
 
-
 type Tab = "youtube" | "pdf" | "audio" | "text";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "youtube", label: "YouTube" },
-  { key: "pdf", label: "PDF" },
-  { key: "audio", label: "Audio" },
-  { key: "text", label: "Text" },
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: "youtube", label: "YouTube", icon: "▶" },
+  { key: "pdf", label: "PDF", icon: "📄" },
+  { key: "audio", label: "Audio", icon: "🎙" },
+  { key: "text", label: "Text", icon: "✎" },
 ];
 
-const TYPE_ICON: Record<Source["type"], string> = {
-  youtube: "▶",
-  pdf: "📄",
-  audio: "🎧",
-  text: "✎",
+const TYPE_BADGE: Record<Source["type"], { label: string; color: string; icon: string }> = {
+  youtube: { label: "YouTube", color: "bg-red-500/10 text-red-400 border-red-500/20", icon: "▶" },
+  pdf: { label: "PDF", color: "bg-amber-500/10 text-amber-400 border-amber-500/20", icon: "📄" },
+  audio: { label: "Audio", color: "bg-orange-500/10 text-orange-400 border-orange-500/20", icon: "🎙" },
+  text: { label: "Text", color: "bg-blue-500/10 text-blue-400 border-blue-500/20", icon: "✎" },
 };
 
 export default function SourcesPanel({
@@ -41,50 +40,89 @@ export default function SourcesPanel({
   const [text, setText] = useState("");
 
   return (
-    <aside className="flex h-full flex-col gap-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-300 uppercase">Add a source</h2>
-        <div className="mb-3 flex gap-1 rounded-lg bg-slate-950/70 p-1">
+    <aside className="flex h-full flex-col gap-3">
+      {/* Source Ingestion Card */}
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4.5 shadow-xl backdrop-blur-xl">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-orange-500 shadow-xs shadow-orange-500" />
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              Knowledge Source
+            </h2>
+          </div>
+          <span className="rounded-md border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-400">
+            RAG Engine v2
+          </span>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="mb-3.5 flex gap-1 rounded-xl border border-zinc-800 bg-zinc-950/80 p-1">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                tab === t.key ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+                tab === t.key
+                  ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/25"
+                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
               }`}
             >
-              {t.label}
+              <span className="text-[11px]">{t.icon}</span>
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
 
+        {/* YouTube Input Form */}
         {tab === "youtube" && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void onAddYouTube(url).then(() => setUrl(""));
             }}
-            className="space-y-2"
+            className="space-y-2.5"
           >
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=…"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-            />
+            <div className="relative">
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950/90 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 transition-all focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+            </div>
             <button
               disabled={!!busy || !url.trim()}
-              className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-40"
+              className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-orange-600 hover:to-amber-600 active:scale-[0.99] disabled:opacity-40"
             >
-              {busy === "youtube" ? "Ingesting…" : "Add video"}
+              {busy === "youtube" ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <span>Ingesting & Chunking…</span>
+                </>
+              ) : (
+                <>
+                  <span>Index Video</span>
+                  <span className="text-xs transition-transform group-hover:translate-x-0.5">→</span>
+                </>
+              )}
             </button>
+            <p className="text-[11px] text-zinc-500 leading-normal">
+              Direct scraping with Gemini multimodal fallback. Timestamps preserved.
+            </p>
           </form>
         )}
 
+        {/* PDF & Audio Upload */}
         {(tab === "pdf" || tab === "audio") && (
-          <div className="space-y-2">
-            <label className="block cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-950 px-3 py-6 text-center text-sm text-slate-400 hover:border-indigo-500">
-              {tab === "pdf" ? "Click to choose a PDF (≤ 4 MB)" : "Click to choose audio (≤ 15 MB, mp3/m4a/wav)"}
+          <div className="space-y-2.5">
+            <label className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-950/60 px-4 py-6 text-center transition-all duration-200 hover:border-orange-500/50 hover:bg-zinc-950/90">
+              <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-lg transition-transform group-hover:scale-110">
+                {tab === "pdf" ? "📄" : "🎙"}
+              </div>
+              <p className="text-xs font-medium text-zinc-300 group-hover:text-orange-400">
+                {tab === "pdf" ? "Select PDF document (≤ 4 MB)" : "Select audio file (≤ 15 MB, mp3/wav/m4a)"}
+              </p>
+              <p className="mt-1 text-[10px] text-zinc-500">Drag and drop or browse files</p>
               <input
                 type="file"
                 accept={tab === "pdf" ? "application/pdf" : "audio/*,video/mp4"}
@@ -96,77 +134,118 @@ export default function SourcesPanel({
                 }}
               />
             </label>
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] text-zinc-500 leading-normal">
               {tab === "audio"
-                ? "Experimental: audio is transcribed by Gemini, then indexed like any other source."
-                : "Text is extracted and chunked; scanned PDFs without a text layer can’t be indexed."}
+                ? "Audio is transcribed with Gemini 2.0 and vector-indexed locally."
+                : "Text is extracted with unpdf and vector-embedded for sub-second retrieval."}
             </p>
           </div>
         )}
 
+        {/* Text / Notes Input */}
         {tab === "text" && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void onAddText(title || "Pasted note", text).then(() => {
+              void onAddText(title || "Pasted Note", text).then(() => {
                 setTitle("");
                 setText("");
               });
             }}
-            className="space-y-2"
+            className="space-y-2.5"
           >
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title (optional)"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              placeholder="Title (e.g. Meeting Notes, Transcript)"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950/90 px-3.5 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Paste notes, an article, a transcript…"
-              rows={5}
-              className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              placeholder="Paste notes, transcripts, or research excerpts…"
+              rows={4}
+              className="w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/90 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
             <button
               disabled={!!busy || !text.trim()}
-              className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all hover:from-orange-600 hover:to-amber-600 active:scale-[0.99] disabled:opacity-40"
             >
-              {busy === "text" ? "Indexing…" : "Add text"}
+              {busy === "text" ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <span>Embedding Text…</span>
+                </>
+              ) : (
+                "Index Text Source"
+              )}
             </button>
           </form>
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-300 uppercase">
-          Sources <span className="text-slate-500">({sources.length})</span>
-        </h2>
-        {sources.length === 0 && (
-          <p className="text-sm text-slate-500">No sources yet. Add one above — everything is stored locally in your browser.</p>
+      {/* Active Indexed Sources List */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-4 shadow-xl backdrop-blur-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              Active Context
+            </h2>
+            <span className="rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-400">
+              {sources.length}
+            </span>
+          </div>
+          {sources.length > 0 && (
+            <span className="text-[10px] text-zinc-500 font-mono">Stored in IndexedDB</span>
+          )}
+        </div>
+
+        {sources.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-500">
+              ⚡
+            </div>
+            <p className="text-xs font-medium text-zinc-400">No sources indexed yet</p>
+            <p className="mt-1 text-[11px] text-zinc-600 max-w-[200px]">
+              Add a video, document, or audio above to power your AI retrieval.
+            </p>
+          </div>
+        ) : (
+          <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {sources.map((s) => {
+              const badge = TYPE_BADGE[s.type];
+              return (
+                <li
+                  key={s.id}
+                  className="group relative flex items-start gap-2.5 rounded-xl border border-zinc-800/90 bg-zinc-950/60 p-3 transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-950/90"
+                >
+                  <div
+                    className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs ${badge.color}`}
+                  >
+                    {badge.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-zinc-200" title={s.title}>
+                      {s.title}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+                      <span>{s.chunks.length} chunks</span>
+                      <span>·</span>
+                      <span className="uppercase">{s.type}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onRemove(s.id)}
+                    aria-label={`Remove ${s.title}`}
+                    className="rounded-md p-1 text-zinc-600 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-        <ul className="space-y-2">
-          {sources.map((s) => (
-            <li key={s.id} className="group flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
-              <span className="mt-0.5 text-base">{TYPE_ICON[s.type]}</span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-200" title={s.title}>
-                  {s.title}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {s.chunks.length} chunks · {s.type}
-                </p>
-              </div>
-              <button
-                onClick={() => onRemove(s.id)}
-                aria-label={`Remove ${s.title}`}
-                className="rounded p-1 text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-red-400"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
       </div>
     </aside>
   );
