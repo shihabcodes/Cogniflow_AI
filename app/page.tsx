@@ -23,8 +23,6 @@ export default function Home() {
       setSources(s);
       setLoaded(true);
     });
-    const savedKey = localStorage.getItem("cogniflow_gemini_key");
-    if (savedKey) setApiKey(savedKey);
   }, []);
 
   const authHeaders: Record<string, string> = apiKey ? { "x-gemini-key": apiKey } : {};
@@ -271,14 +269,7 @@ export default function Home() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         apiKey={apiKey}
-        onSaveKey={(key) => {
-          setApiKey(key);
-          if (key) {
-            localStorage.setItem("cogniflow_gemini_key", key);
-          } else {
-            localStorage.removeItem("cogniflow_gemini_key");
-          }
-        }}
+        onSaveKey={(key) => setApiKey(key)}
       />
 
       <footer className="mt-2.5 flex items-center justify-between px-1 text-[11px] font-mono text-zinc-500">
