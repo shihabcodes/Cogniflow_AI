@@ -8,6 +8,13 @@ const ALLOWED = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a", "audio/m
 export async function POST(req: Request) {
   try {
     const apiKey = req.headers.get("x-gemini-key") || undefined;
+    if (!apiKey && !process.env.ALLOW_SERVER_KEY) {
+      return NextResponse.json(
+        { error: "Missing Gemini API key. Please enter your Gemini API key in Settings." },
+        { status: 401 }
+      );
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File))

@@ -13,8 +13,23 @@ export async function POST(req: Request) {
     };
     const effectiveKey = headerKey || bodyKey;
 
-    if (!texts?.length || texts.length > 96)
-      return NextResponse.json({ error: "Provide between 1 and 96 texts." }, { status: 400 });
+    if (!effectiveKey && !process.env.ALLOW_SERVER_KEY) {
+      return NextResponse.json(
+        { error: "Missing Gemini API key. Please enter your Gemini API key in Settings." },
+        { status: 401 }
+      );
+    }
+
+    if (
+      !texts?.length ||
+      texts.length > 96 ||
+      texts.some((t) => typeof t !== "string" || t.length > 5000)
+    ) {
+      return NextResponse.json(
+        { error: "Provide between 1 and 96 texts, max 5,000 characters each." },
+        { status: 400 }
+      );
+    }
 
     const vectors = await embedTexts(
       texts,
