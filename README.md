@@ -1,6 +1,6 @@
 # Cogniflow AI — ask your media, get cited answers
 
-**NotebookLM-style retrieval-augmented generation (RAG), in your browser.** Add YouTube videos, podcasts, PDFs, or pasted notes as sources, then ask questions — every claim in the answer carries a citation chip that links back to the exact moment in the video.
+**Retrieval-augmented generation (RAG), in your browser.** Add YouTube videos, podcasts, PDFs, or pasted notes as sources, then ask questions — every claim in the answer carries a citation chip that links back to the exact moment in the video.
 
 ```
 add source ──► ingest ──► chunk ──► embed (Gemini) ──► vectors in your browser
@@ -67,6 +67,15 @@ lib/
 - [ ] Long-audio support via Files API (currently ~15 MB inline limit)
 - [ ] Answer streaming
 - [ ] Export answers with citations to Markdown
+
+## Privacy & Security
+
+- **Your sources stay yours** — documents, chunks, and embeddings are stored in your browser's IndexedDB. They are never uploaded to the server.
+- **Only excerpts travel** — when you ask a question, just the top-6 retrieved excerpts are sent to Google's Gemini API to compose the answer. The system prompt wraps excerpts in `<source_excerpt>` tags and instructs the model to treat them as passive data, never as instructions.
+- **No accounts, no analytics, no tracking.**
+- **Bring your own key** — your Gemini key is stored only in your browser's localStorage and sent per-request via the `x-gemini-key` header. Clear it anytime in Settings (⚙).
+- **Server key is opt-in** — deployment owners decide via `ALLOW_SERVER_KEY`; without it, API routes refuse to run on the shared key. All API routes are per-IP rate limited, and standard security headers are set on every response.
+- **Found a vulnerability?** Please report it privately via GitHub's *Security → Report a vulnerability* rather than a public issue. See [SECURITY.md](SECURITY.md).
 
 ## History
 
