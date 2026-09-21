@@ -43,7 +43,7 @@ export default function SettingsModal({
       if (res.ok && data.ok) {
         setTestResult({
           ok: true,
-          message: `Key is active & verified! Connected to ${data.model || "Gemini 2.0"}.`,
+          message: `Key is active & verified! Connected to ${data.model || "Gemini"}.`,
         });
       } else {
         setTestResult({

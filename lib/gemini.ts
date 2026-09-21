@@ -1,16 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 
 const FALLBACK_MODELS = [
   DEFAULT_MODEL,
-  "gemini-2.0-flash",
+  "gemini-3.6-flash",
   "gemini-2.5-flash",
+  "gemini-2.0-flash",
   "gemini-1.5-flash",
   "gemini-2.0-flash-lite",
   "gemini-1.5-flash-8b",
   "gemini-1.5-pro-latest",
+  "gemini-1.5-pro",
 ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i) as string[];
 
 export function getAI(customKey?: string): GoogleGenAI {
