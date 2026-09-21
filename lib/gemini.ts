@@ -16,7 +16,7 @@ export function getAI(customKey?: string): GoogleGenAI {
   const apiKey = customKey?.trim() || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "No Gemini API key found. Set GOOGLE_API_KEY in your environment or enter your key in Settings."
+      "Missing Gemini API key. Please configure your Gemini API key in Settings."
     );
   }
   return new GoogleGenAI({ apiKey });
