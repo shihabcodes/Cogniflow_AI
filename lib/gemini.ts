@@ -6,10 +6,11 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const FALLBACK_MODELS = [
   DEFAULT_MODEL,
   "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "gemini-1.5-flash",
   "gemini-2.0-flash-lite",
-  "gemini-3.6-flash",
-  "gemini-1.5-pro",
+  "gemini-1.5-flash-8b",
+  "gemini-1.5-pro-latest",
 ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i) as string[];
 
 export function getAI(customKey?: string): GoogleGenAI {
@@ -30,7 +31,10 @@ async function generateWithFallback(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   config?: any
 ): Promise<{ text?: string; modelUsed: string }> {
-  let lastError: unknown = null;
+  let primaryError: Error | null = null;
+  let rateLimitHit = false;
+  let highDemandHit = false;
+
   for (const model of FALLBACK_MODELS) {
     try {
       const res = await ai.models.generateContent({
@@ -40,34 +44,49 @@ async function generateWithFallback(
       });
       return { text: res.text, modelUsed: model };
     } catch (err: unknown) {
-      lastError = err;
       const msg = err instanceof Error ? err.message : String(err);
+      if (!primaryError && err instanceof Error) {
+        primaryError = err;
+      }
 
-      // If input tokens exceed 1M limit (common for videos > 1 hour), attempt gemini-1.5-pro (2M context window)
+      // If input tokens exceed 1M limit (common for videos > 1 hour), attempt 2M-token models
       if (
         msg.includes("exceeds the maximum number of tokens") ||
         msg.includes("input token count exceeds")
       ) {
-        console.warn(`Input token count exceeded for ${model}. Attempting 2M-token model (gemini-1.5-pro)...`);
-        try {
-          const proRes = await ai.models.generateContent({
-            model: "gemini-1.5-pro",
-            contents,
-            ...(config ? { config } : {}),
-          });
-          return { text: proRes.text, modelUsed: "gemini-1.5-pro" };
-        } catch (proErr: unknown) {
-          const proMsg = proErr instanceof Error ? proErr.message : String(proErr);
-          if (
-            proMsg.includes("exceeds the maximum number of tokens") ||
-            proMsg.includes("input token count exceeds")
-          ) {
-            throw new Error(
-              "This video is over 2 hours long and exceeds the token limit for direct AI video ingestion. Please copy the transcript from YouTube and paste it into the 'Text' tab to query it!"
-            );
+        console.warn(`Input token count exceeded for ${model}. Attempting 2M-token model...`);
+        for (const proModel of ["gemini-1.5-pro-latest", "gemini-2.5-pro", "gemini-1.5-pro-002"]) {
+          try {
+            const proRes = await ai.models.generateContent({
+              model: proModel,
+              contents,
+              ...(config ? { config } : {}),
+            });
+            return { text: proRes.text, modelUsed: proModel };
+          } catch (proErr: unknown) {
+            const proMsg = proErr instanceof Error ? proErr.message : String(proErr);
+            if (
+              proMsg.includes("exceeds the maximum number of tokens") ||
+              proMsg.includes("input token count exceeds")
+            ) {
+              throw new Error(
+                "This video is over 2 hours long and exceeds the token limit for direct AI video ingestion. Please copy the transcript from YouTube and paste it into the 'Text' tab to query it!"
+              );
+            }
           }
-          throw proErr;
         }
+      }
+
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+        rateLimitHit = true;
+      }
+      if (
+        msg.includes("503") ||
+        msg.includes("UNAVAILABLE") ||
+        msg.includes("high demand") ||
+        msg.includes("overloaded")
+      ) {
+        highDemandHit = true;
       }
 
       // Check for deprecation, not found, high demand / overload (503), or rate limits (429)
@@ -90,7 +109,20 @@ async function generateWithFallback(
       throw err;
     }
   }
-  throw lastError;
+
+  // If all models were exhausted, provide a clean, helpful error message rather than a confusing 404 from a dead fallback
+  if (rateLimitHit) {
+    throw new Error(
+      "Gemini API rate limit or quota exceeded (429). If you are using a free key from Google AI Studio, please wait a minute or check your quota at https://aistudio.google.com/."
+    );
+  }
+  if (highDemandHit) {
+    throw new Error(
+      "Gemini API is currently experiencing temporary high demand (503). Please try asking again in a few moments."
+    );
+  }
+
+  throw primaryError || new Error("All AI model fallbacks were unavailable. Please verify your Gemini API key in Settings.");
 }
 
 export async function embedTexts(
