@@ -17,12 +17,23 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+function withSecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  return res;
+}
+
 export function middleware(request: NextRequest) {
   // Only apply rate limiting to API routes
   if (request.nextUrl.pathname.startsWith("/api/")) {
+    // On Vercel, x-real-ip is set by the platform and cannot be spoofed by the
+    // client. x-forwarded-for may carry client-supplied entries, so trust only
+    // the LAST entry (the one the platform appends), never the first.
     const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||
+      request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
       "127.0.0.1";
 
     const now = Date.now();
@@ -34,14 +45,14 @@ export function middleware(request: NextRequest) {
         resetTime: now + RATE_LIMIT_WINDOW_MS,
       });
 
-      const res = NextResponse.next();
+      const res = withSecurityHeaders(NextResponse.next());
       res.headers.set("X-RateLimit-Limit", String(MAX_REQUESTS_PER_WINDOW));
       res.headers.set("X-RateLimit-Remaining", String(MAX_REQUESTS_PER_WINDOW - 1));
       return res;
     }
 
     if (current.count >= MAX_REQUESTS_PER_WINDOW) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { error: "Too many requests. Please slow down." },
         {
           status: 429,
@@ -52,10 +63,11 @@ export function middleware(request: NextRequest) {
           },
         }
       );
+      return withSecurityHeaders(res);
     }
 
     current.count++;
-    const res = NextResponse.next();
+    const res = withSecurityHeaders(NextResponse.next());
     res.headers.set("X-RateLimit-Limit", String(MAX_REQUESTS_PER_WINDOW));
     res.headers.set(
       "X-RateLimit-Remaining",
@@ -64,7 +76,7 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
-  return NextResponse.next();
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {
