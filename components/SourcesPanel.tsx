@@ -120,7 +120,7 @@ export default function SourcesPanel({
                 {tab === "pdf" ? "📄" : "🎙"}
               </div>
               <p className="text-xs font-medium text-zinc-300 group-hover:text-orange-400">
-                {tab === "pdf" ? "Select PDF document (≤ 4 MB)" : "Select audio file (≤ 15 MB, mp3/wav/m4a)"}
+                {tab === "pdf" ? "Select PDF document (≤ 4 MB)" : "Select audio file (≤ 4 MB, mp3/wav/m4a)"}
               </p>
               <p className="mt-1 text-[10px] text-zinc-500">Drag and drop or browse files</p>
               <input
@@ -136,7 +136,7 @@ export default function SourcesPanel({
             </label>
             <p className="text-[11px] text-zinc-500 leading-normal">
               {tab === "audio"
-                ? "Audio is transcribed with Gemini 2.0 and vector-indexed locally."
+                ? "Audio is transcribed with Gemini and vector-indexed locally."
                 : "Text is extracted with unpdf and vector-embedded for sub-second retrieval."}
             </p>
           </div>

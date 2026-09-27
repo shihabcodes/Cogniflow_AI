@@ -3,6 +3,7 @@ import { YoutubeTranscript } from "youtube-transcript";
 import { chunkTranscript } from "@/lib/chunk";
 import { transcribeYouTube } from "@/lib/gemini";
 import { parseTimestampedTranscript } from "@/lib/parse-timestamps";
+import { errorMessage, errorResponse, geminiKey } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -22,104 +23,63 @@ function extractVideoId(input: string): string | null {
   return null;
 }
 
+async function scrapeCaptions(videoId: string) {
+  const entries = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" }).catch(() =>
+    YoutubeTranscript.fetchTranscript(videoId)
+  );
+  return chunkTranscript(entries.map((e) => ({ text: e.text, offset: e.offset })));
+}
+
 export async function POST(req: Request) {
   try {
-    const headerKey = req.headers.get("x-gemini-key") || undefined;
-    const { url, apiKey: bodyApiKey } = (await req.json()) as { url?: string; apiKey?: string };
-    const effectiveKey = headerKey || bodyApiKey;
-
+    const { url } = (await req.json()) as { url?: string };
     if (!url) return NextResponse.json({ error: "Missing url." }, { status: 400 });
 
     const videoId = extractVideoId(url);
-    if (!videoId)
-      return NextResponse.json({ error: "Could not parse a YouTube video ID from that URL." }, { status: 400 });
+    if (!videoId) return NextResponse.json({ error: "Could not parse a YouTube video ID from that URL." }, { status: 400 });
 
-    let title = videoId;
+    const title = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+      .then(async (r) => (r.ok ? ((await r.json()) as { title?: string }).title : undefined))
+      .catch(() => undefined); // cosmetic — fall back to the videoId
+
+    // Tier 1: scrape captions (free). Often blocked from Vercel IPs.
+    let chunks: { text: string; startTimeSec: number }[] = [];
+    let scrapeError = "captions unavailable";
     try {
-      const oembed = await fetch(
-        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
-      );
-      if (oembed.ok) title = ((await oembed.json()) as { title?: string }).title ?? title;
-    } catch {
-      // title is cosmetic — keep the videoId on failure
-    }
-
-    // Tier 1: Try scraping captions directly (fastest & free)
-    let chunks: { text: string; startTimeSec: number }[] | null = null;
-    let scrapeError: string | null = null;
-
-    try {
-      let entries;
-      try {
-        entries = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
-      } catch {
-        entries = await YoutubeTranscript.fetchTranscript(videoId);
-      }
-      if (entries?.length) {
-        chunks = chunkTranscript(
-          entries.map((e) => ({ text: e.text, offset: e.offset }))
-        );
-      }
+      chunks = await scrapeCaptions(videoId);
     } catch (err) {
-      scrapeError = err instanceof Error ? err.message : "Transcript scraping failed";
+      scrapeError = errorMessage(err, scrapeError);
     }
 
-    // Tier 2: If scraping failed (e.g. Vercel AWS IP blocked by YouTube), use Gemini video understanding
-    if (!chunks || chunks.length === 0) {
-      console.log(`Scraping failed for ${videoId} (${scrapeError}). Falling back to Gemini video understanding...`);
+    // Tier 2: have Gemini watch the video. Spends quota, so it needs a key.
+    if (!chunks.length) {
+      const { key, denied } = geminiKey(req);
+      if (denied)
+        return NextResponse.json(
+          { error: `Could not scrape captions for this video (${scrapeError}). Add your Gemini API key in Settings so Gemini can transcribe it instead.` },
+          { status: 401 }
+        );
       try {
-        const rawTranscript = await transcribeYouTube(videoId, effectiveKey);
-        if (rawTranscript && rawTranscript.trim()) {
-          chunks = parseTimestampedTranscript(rawTranscript);
-        }
-      } catch (geminiErr) {
-        let geminiMsg = geminiErr instanceof Error ? geminiErr.message : "Gemini video understanding failed";
-        try {
-          const parsed = JSON.parse(geminiMsg);
-          if (parsed?.error?.message) {
-            geminiMsg = parsed.error.message;
-          }
-        } catch {
-          // not JSON
-        }
-
-        if (
-          geminiMsg.includes("exceeds the maximum number of tokens") ||
-          geminiMsg.includes("input token count exceeds") ||
-          geminiMsg.includes("too long")
-        ) {
+        chunks = parseTimestampedTranscript(await transcribeYouTube(videoId, key));
+      } catch (err) {
+        const msg = errorMessage(err, "Gemini video understanding failed");
+        if (/exceeds the maximum number of tokens|input token count exceeds|too long/.test(msg))
           return NextResponse.json(
-            {
-              error: "This video is very long (> 1 hour) for direct AI video ingestion, and YouTube blocked caption scraping from Vercel. Tip: Open this video on YouTube, click '... More' -> 'Show transcript', copy it, and paste it into the 'Text' tab to query it immediately!",
-            },
+            { error: "This video is too long for direct AI video ingestion, and YouTube blocked caption scraping. Tip: open the video on YouTube, click '… More' → 'Show transcript', copy it, and paste it into the 'Text' tab." },
             { status: 413 }
           );
-        }
-
         return NextResponse.json(
-          {
-            error: `Could not fetch transcript: YouTube blocked direct scraping (${scrapeError || "captions unavailable"}), and Gemini fallback reported: ${geminiMsg}. Check your Gemini API key in Settings.`,
-          },
+          { error: `Could not fetch transcript: YouTube blocked direct scraping (${scrapeError}), and Gemini fallback reported: ${msg}` },
           { status: 502 }
         );
       }
     }
 
-    if (!chunks || chunks.length === 0) {
-      return NextResponse.json(
-        { error: "No transcript could be extracted for this video. Please check the video URL or enter your Gemini API key in Settings." },
-        { status: 404 }
-      );
-    }
+    if (!chunks.length)
+      return NextResponse.json({ error: "No transcript could be extracted for this video." }, { status: 404 });
 
-    return NextResponse.json({
-      videoId,
-      title,
-      url: `https://www.youtube.com/watch?v=${videoId}`,
-      chunks,
-    });
+    return NextResponse.json({ videoId, title: title ?? videoId, url: `https://www.youtube.com/watch?v=${videoId}`, chunks });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch transcript.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err, "Failed to fetch transcript.");
   }
 }

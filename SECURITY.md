@@ -17,9 +17,8 @@ Please include reproduction steps and, if possible, the affected route or file. 
 
 ## Out of scope
 
-- Device-owner tampering with client-side storage: BYOK keys live in your browser's localStorage by design, and sources live in IndexedDB by design
+- Device-owner tampering with client-side storage: BYOK keys live only in page memory, and sources live in IndexedDB by design
 - Issues on Google's side of the Gemini API
-- The archived `legacy-streamlit/` app (local-use only, no server)
 
 ## Data handling summary
 
@@ -27,5 +26,5 @@ Please include reproduction steps and, if possible, the affected route or file. 
 |---|---|---|
 | Sources, chunks, embeddings | IndexedDB (your browser) | Never uploaded to the server |
 | Retrieved excerpts (top-6 per question) | — | Sent to Google's Gemini API to compose the answer |
-| Your API key (BYOK) | localStorage (your browser) | Sent per-request to Google via the app's API routes |
+| Your API key (BYOK) | Page memory (cleared on reload) | Sent per-request to Google via the app's API routes |
 | Server API key (owner) | Server env vars only | Used only when `ALLOW_SERVER_KEY` is enabled |

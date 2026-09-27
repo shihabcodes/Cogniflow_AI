@@ -4,7 +4,7 @@
  */
 import { chunkText, chunkTranscript, CHUNK_TARGET_CHARS } from "../lib/chunk";
 import { cosineSim, topK } from "../lib/vector";
-import { parseCitations } from "../lib/citations";
+import { linkCitations, parseCitations } from "../lib/citations";
 import type { Source } from "../lib/types";
 
 let failures = 0;
@@ -44,8 +44,8 @@ const sources: Source[] = [
   {
     id: "a", type: "text", title: "A", addedAt: 1,
     chunks: [
-      { id: "a:0", sourceId: "a", index: 0, text: "close", vector: [1, 0] },
-      { id: "a:1", sourceId: "a", index: 1, text: "far", vector: [0, 1] },
+      { text: "close", vector: [1, 0] },
+      { text: "far", vector: [0, 1] },
     ],
   },
 ];
@@ -56,6 +56,11 @@ check("topK ranks by similarity", hits[0].chunk.text === "close");
 const tokens = parseCitations("The sky is blue [1]. Water is wet [2][3].");
 check("citations parsed", tokens.filter((t) => t.kind === "cite").length === 3);
 check("text preserved around citations", tokens[0].kind === "text" && tokens[0].value.includes("The sky is blue"));
+check(
+  "citations become markdown links without breaking lists",
+  linkCitations("- **Fast** setup [1]\n- Cheap [2][3]") ===
+    "- **Fast** setup [1](#cite-1)\n- Cheap [2](#cite-2)[3](#cite-3)"
+);
 
 console.log(failures === 0 ? "\nAll checks passed ✅" : `\n${failures} check(s) FAILED ❌`);
 process.exit(failures === 0 ? 0 : 1);

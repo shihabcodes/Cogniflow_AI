@@ -1,5 +1,4 @@
-import type { Chunk } from "./types";
-import type { Source } from "./types";
+import type { Chunk, Source } from "./types";
 
 export function cosineSim(a: number[], b: number[]): number {
   let dot = 0;
@@ -23,7 +22,6 @@ export function topK(
   const scored: { chunk: Chunk; source: Source; score: number }[] = [];
   for (const s of sources) {
     for (const c of s.chunks) {
-      if (!c.vector) continue;
       scored.push({ chunk: c, source: s, score: cosineSim(queryVector, c.vector) });
     }
   }

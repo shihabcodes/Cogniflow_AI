@@ -7,7 +7,7 @@ import SettingsModal from "@/components/SettingsModal";
 import { chunkText, CHUNK_TARGET_CHARS, CHUNK_OVERLAP_CHARS } from "@/lib/chunk";
 import { topK } from "@/lib/vector";
 import { deleteSource, loadSources, saveSource } from "@/lib/store";
-import type { Citation, RetrievedChunk, Source } from "@/lib/types";
+import type { RetrievedChunk, Source, SourceType } from "@/lib/types";
 
 export default function Home() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -25,108 +25,75 @@ export default function Home() {
     });
   }, []);
 
-  const authHeaders: Record<string, string> = apiKey ? { "x-gemini-key": apiKey } : {};
+  async function post(path: string, body: FormData | object) {
+    const form = body instanceof FormData;
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { ...(form ? {} : { "Content-Type": "application/json" }), ...(apiKey ? { "x-gemini-key": apiKey } : {}) },
+      body: form ? body : JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status}).`);
+    return json;
+  }
 
-  async function embedBatch(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"): Promise<number[][]> {
+  async function embed(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"): Promise<number[][]> {
     const out: number[][] = [];
-    for (let i = 0; i < texts.length; i += 48) {
-      const res = await fetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ texts: texts.slice(i, i + 48), taskType }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Embedding failed.");
-      out.push(...(json.vectors as number[][]));
+    for (let i = 0; i < texts.length; i += 96) {
+      out.push(...(await post("/api/embed", { texts: texts.slice(i, i + 96), taskType })).vectors);
     }
     return out;
   }
 
-  async function addSource(base: Omit<Source, "chunks">, texts: string[], startTimeSecs?: (number | undefined)[]) {
-    const vectors = await embedBatch(texts, "RETRIEVAL_DOCUMENT");
-    const source: Source = {
-      ...base,
-      chunks: texts.map((text, i) => ({
-        id: `${base.id}:${i}`,
-        sourceId: base.id,
-        index: i,
-        text,
-        vector: vectors[i],
-        startTimeSec: startTimeSecs?.[i],
-      })),
-    };
-    await saveSource(source);
-    setSources((prev) => [...prev, source]);
+  function showError(err: unknown, fallback: string) {
+    setMessages((m) => [...m, { role: "assistant", text: err instanceof Error ? err.message : fallback, error: true }]);
   }
 
-  async function handleAddYouTube(url: string) {
-    setBusy("youtube");
-    setMessages((m) => [...m.slice(-20), { role: "assistant", text: "Ingesting & indexing video…" }]);
+  type Loaded = { title: string; texts: string[]; times?: number[]; url?: string; videoId?: string };
+
+  async function ingest(type: SourceType, load: () => Promise<Loaded>) {
+    setBusy(type);
     try {
-      const res = await fetch("/api/youtube", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ url }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to ingest video.");
-      await addSource(
-        { id: crypto.randomUUID(), type: "youtube", title: json.title, url: json.url, videoId: json.videoId, addedAt: Date.now() },
-        (json.chunks as { text: string; startTimeSec: number }[]).map((c) => c.text),
-        (json.chunks as { text: string; startTimeSec: number }[]).map((c) => c.startTimeSec)
-      );
-      setMessages((m) => m.slice(0, -1));
+      const { texts, times, ...meta } = await load();
+      const vectors = await embed(texts, "RETRIEVAL_DOCUMENT");
+      const source: Source = {
+        id: crypto.randomUUID(),
+        type,
+        addedAt: Date.now(),
+        ...meta,
+        chunks: texts.map((text, i) => ({ text, vector: vectors[i], startTimeSec: times?.[i] })),
+      };
+      await saveSource(source);
+      setSources((prev) => [...prev, source]);
     } catch (err) {
-      setMessages((m) => [
-        ...m.slice(0, -1),
-        { role: "assistant", text: err instanceof Error ? err.message : "Ingestion failed.", error: true },
-      ]);
+      showError(err, "Ingestion failed.");
     } finally {
       setBusy(null);
     }
   }
 
-  async function handleAddFile(file: File, kind: "pdf" | "audio") {
-    setBusy(kind);
-    try {
+  const handleAddYouTube = (url: string) =>
+    ingest("youtube", async () => {
+      const j = await post("/api/youtube", { url });
+      const chunks = j.chunks as { text: string; startTimeSec: number }[];
+      return {
+        title: j.title,
+        url: j.url,
+        videoId: j.videoId,
+        texts: chunks.map((c) => c.text),
+        times: chunks.map((c) => c.startTimeSec),
+      };
+    });
+
+  const handleAddFile = (file: File, kind: "pdf" | "audio") =>
+    ingest(kind, async () => {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`/api/${kind}`, {
-        method: "POST",
-        headers: { ...authHeaders },
-        body: form,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `Failed to ingest ${kind}.`);
-      const texts = chunkText(json.text as string);
-      await addSource(
-        { id: crypto.randomUUID(), type: kind, title: json.title, addedAt: Date.now() },
-        texts
-      );
-    } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: err instanceof Error ? err.message : "Ingestion failed.", error: true },
-      ]);
-    } finally {
-      setBusy(null);
-    }
-  }
+      const j = await post(`/api/${kind}`, form);
+      return { title: j.title, texts: chunkText(j.text) };
+    });
 
-  async function handleAddText(title: string, text: string) {
-    setBusy("text");
-    try {
-      const texts = chunkText(text);
-      await addSource({ id: crypto.randomUUID(), type: "text", title, addedAt: Date.now() }, texts);
-    } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: err instanceof Error ? err.message : "Indexing failed.", error: true },
-      ]);
-    } finally {
-      setBusy(null);
-    }
-  }
+  const handleAddText = (title: string, text: string) => ingest("text", async () => ({ title, texts: chunkText(text) }));
 
   function handleRemove(id: string) {
     void deleteSource(id);
@@ -137,19 +104,11 @@ export default function Home() {
     setMessages((m) => [...m, { role: "user", text: question }]);
     setAsking(true);
     try {
-      const res = await fetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ texts: [question], taskType: "RETRIEVAL_QUERY" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Embedding failed.");
-      const [queryVector] = json.vectors as number[][];
-
+      const [queryVector] = await embed([question], "RETRIEVAL_QUERY");
       const hits = topK(queryVector, sources, 6);
       if (!hits.length) throw new Error("No indexed sources found. Re-add a source (your browser storage may have been cleared).");
 
-      const retrieved: RetrievedChunk[] = hits.map((h, i) => ({
+      const citations: RetrievedChunk[] = hits.map((h, i) => ({
         n: i + 1,
         text: h.chunk.text,
         sourceTitle: h.source.title,
@@ -158,36 +117,16 @@ export default function Home() {
         videoId: h.source.videoId,
         startTimeSec: h.chunk.startTimeSec,
       }));
-
-      const askRes = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ question, chunks: retrieved }),
-      });
-      const askJson = await askRes.json();
-      if (!askRes.ok) throw new Error(askJson.error ?? "Answer generation failed.");
-
-      const citations: Citation[] = retrieved.map((c) => ({
-        n: c.n,
-        sourceTitle: c.sourceTitle,
-        sourceType: c.sourceType,
-        sourceUrl: c.sourceUrl,
-        videoId: c.videoId,
-        startTimeSec: c.startTimeSec,
-        snippet: c.text.slice(0, 240),
-      }));
-      setMessages((m) => [...m, { role: "assistant", text: askJson.answer as string, citations }]);
+      const { answer } = await post("/api/ask", { question, chunks: citations });
+      setMessages((m) => [...m, { role: "assistant", text: answer, citations }]);
     } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: err instanceof Error ? err.message : "Something went wrong.", error: true },
-      ]);
+      showError(err, "Something went wrong.");
     } finally {
       setAsking(false);
     }
   }
 
-  const hasSources = sources.some((s) => s.chunks.some((c) => c.vector));
+  const hasSources = sources.some((s) => s.chunks.length > 0);
 
   return (
     <main className="relative mx-auto flex h-screen max-w-7xl flex-col p-3 sm:p-4 md:p-6">

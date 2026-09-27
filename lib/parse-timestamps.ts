@@ -1,3 +1,5 @@
+import { chunkText } from "./chunk";
+
 export interface TimestampedSegment {
   text: string;
   startTimeSec: number;
@@ -59,7 +61,7 @@ export function parseTimestampedTranscript(
   }
 
   if (!foundAnyTimestamp || segments.length === 0) {
-    return [{ text: rawText.trim(), startTimeSec: 0 }];
+    return chunkText(rawText).map((text) => ({ text, startTimeSec: 0 }));
   }
 
   // Group into chunks of targetChunkSize

@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+
+/**
+ * The caller's Gemini key from the x-gemini-key header, plus a 401 response when
+ * there is none and the owner hasn't opted into the server key (ALLOW_SERVER_KEY).
+ * Every route that spends Gemini quota must return `denied` when it is set.
+ */
+export function geminiKey(req: Request): { key?: string; denied?: NextResponse } {
+  const key = req.headers.get("x-gemini-key") || undefined;
+  if (key || process.env.ALLOW_SERVER_KEY) return { key };
+  return {
+    denied: NextResponse.json(
+      { error: "Missing Gemini API key. Please enter your Gemini API key in Settings." },
+      { status: 401 }
+    ),
+  };
+}
+
+/** Error text for the client. Gemini errors carry a JSON body as their message; unwrap it. */
+export function errorMessage(err: unknown, fallback: string): string {
+  const msg = err instanceof Error ? err.message : fallback;
+  try {
+    return JSON.parse(msg)?.error?.message ?? msg;
+  } catch {
+    return msg;
+  }
+}
+
+export function errorResponse(err: unknown, fallback: string, status = 500): NextResponse {
+  return NextResponse.json({ error: errorMessage(err, fallback) }, { status });
+}
