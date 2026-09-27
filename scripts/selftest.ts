@@ -3,8 +3,8 @@
  *   npm run selftest
  */
 import { chunkText, chunkTranscript, CHUNK_TARGET_CHARS } from "../lib/chunk";
-import { cosineSim, topK } from "../lib/vector";
-import { linkCitations, parseCitations } from "../lib/citations";
+import { bm25, cosineSim, topK } from "../lib/vector";
+import { answerToMarkdown, linkCitations, parseCitations } from "../lib/citations";
 import type { Source } from "../lib/types";
 
 let failures = 0;
@@ -49,8 +49,26 @@ const sources: Source[] = [
     ],
   },
 ];
-const hits = topK([0.9, 0.1], sources, 1);
+const hits = topK([0.9, 0.1], "", sources, 1);
 check("topK ranks by similarity", hits[0].chunk.text === "close");
+
+// --- keyword (BM25) + hybrid fusion ---
+const docs: Source[] = [
+  {
+    id: "b", type: "text", title: "B", addedAt: 1,
+    chunks: [
+      { text: "General notes about sleep and routines.", vector: [1, 0] },
+      { text: "Adenosine builds up while awake; caffeine blocks adenosine receptors.", vector: [0, 1] },
+      { text: "Morning light exposure helps set circadian rhythm.", vector: [0.9, 0.1] },
+    ],
+  },
+];
+const kw = bm25("adenosine", docs[0].chunks);
+check("bm25 scores only chunks containing the term", kw[1] > 0 && kw[0] === 0 && kw[2] === 0);
+check("bm25 is case-insensitive", bm25("ADENOSINE", docs[0].chunks)[1] === kw[1]);
+const hybrid = topK([1, 0], "adenosine", docs, 2);
+check("hybrid surfaces an exact keyword match the vector missed", hybrid.some((h) => h.chunk.text.includes("Adenosine")));
+check("hybrid keeps the best semantic match too", hybrid.some((h) => h.chunk.text.startsWith("General")));
 
 // --- citations ---
 const tokens = parseCitations("The sky is blue [1]. Water is wet [2][3].");
@@ -61,6 +79,12 @@ check(
   linkCitations("- **Fast** setup [1]\n- Cheap [2][3]") ===
     "- **Fast** setup [1](#cite-1)\n- Cheap [2](#cite-2)[3](#cite-3)"
 );
+
+const md = answerToMarkdown("Caffeine blocks adenosine [2].", [
+  { n: 1, text: "", sourceTitle: "Unused", sourceType: "text" },
+  { n: 2, text: "", sourceTitle: "Sleep Talk", sourceType: "youtube", videoId: "abcdefghijk", startTimeSec: 75 },
+]);
+check("markdown export lists only cited sources", md.includes("[2] [Sleep Talk @ 1:15](https://www.youtube.com/watch?v=abcdefghijk&t=75s)") && !md.includes("Unused"));
 
 console.log(failures === 0 ? "\nAll checks passed ✅" : `\n${failures} check(s) FAILED ❌`);
 process.exit(failures === 0 ? 0 : 1);

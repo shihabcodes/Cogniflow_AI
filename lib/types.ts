@@ -25,3 +25,8 @@ export interface RetrievedChunk {
   videoId?: string;
   startTimeSec?: number;
 }
+
+export interface Turn {
+  role: "user" | "assistant";
+  text: string;
+}

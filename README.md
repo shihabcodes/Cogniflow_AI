@@ -11,10 +11,12 @@ ask ──► embed question ──► cosine top-k ──► grounded Gemini an
 
 ## Features
 
-- **Four source types** — YouTube links (transcript with timestamps), PDFs (text extraction), audio files (Gemini-native transcription), pasted text
+- **Four source types** — YouTube links (transcript with timestamps), PDFs (parsed in your browser, never uploaded), audio files (Gemini-native transcription), pasted text
 - **Cited answers** — the model must ground every claim in `[n]` citations; chips link to the source, and for YouTube to the *exact second* (`&t=`)
 - **Local-first storage** — sources, chunks, and embeddings live in your browser's IndexedDB; only small excerpts are sent to the model when you ask
-- **Retrieval quality matters** — paragraph-aware chunking with overlap, `RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY` task-typed embeddings, top-k cosine search
+- **Retrieval quality matters** — paragraph-aware chunking with overlap, task-typed embeddings, and hybrid search (vector similarity + BM25 keyword match, merged with reciprocal rank fusion)
+- **Real conversations** — answers stream in, and follow-ups like "what did he say after that?" are rewritten into standalone queries before searching
+- **Portable answers** — copy any answer as Markdown with its cited sources and timestamp links
 - **Honest refusal** — if the sources don't contain the answer, the model says so instead of inventing one
 
 ## Tech stack
@@ -42,20 +44,19 @@ npm run selftest
 2. Add environment variable `GOOGLE_API_KEY` (from Google AI Studio)
 3. Deploy — no database needed; storage is client-side
 
-Notes: Vercel's ~4.5 MB request cap limits PDF and audio uploads to ~4 MB. Set `ALLOW_SERVER_KEY=true` only if you want visitors without their own key to spend yours.
+Notes: PDFs have no size limit (they never leave the browser). Audio uploads are limited to ~4 MB by Vercel's request cap. Set `ALLOW_SERVER_KEY=true` only if you want visitors without their own key to spend yours.
 
 ## Architecture
 
 ```
 app/
   api/youtube/route.ts   transcript fetch (+ timestamps) → chunked
-  api/pdf/route.ts       text extraction (unpdf)
   api/audio/route.ts     Gemini-native transcription
-  api/embed/route.ts     Gemini embeddings (task-typed)
-  api/ask/route.ts       grounded generation with [n] citation contract
+  api/embed/route.ts     Gemini embeddings (task-typed); rewrites follow-up queries
+  api/ask/route.ts       streamed, grounded generation with [n] citation contract
 lib/
   chunk.ts               paragraph-aware chunking + transcript grouping
-  vector.ts              cosine similarity + top-k
+  vector.ts              hybrid search: cosine + BM25, reciprocal rank fusion
   store.ts               IndexedDB persistence (sources, chunks, vectors)
   citations.ts           answer → citation chips
   gemini.ts              all Gemini calls, with model fallback
@@ -67,8 +68,8 @@ lib/
 - [ ] Multiple named notebooks
 - [ ] Optional Supabase persistence (sync across devices)
 - [ ] Long-audio support via Files API (currently ~4 MB upload limit)
-- [ ] Answer streaming
-- [ ] Export answers with citations to Markdown
+- [x] Answer streaming
+- [x] Export answers with citations to Markdown
 
 ## Privacy & Security
 

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import CitationText from "./CitationText";
+import { answerToMarkdown } from "@/lib/citations";
 import type { RetrievedChunk } from "@/lib/types";
 
 export interface Message {
+  id: string;
   role: "user" | "assistant";
   text: string;
   citations?: RetrievedChunk[];
@@ -31,6 +33,12 @@ export default function ChatPanel({
 }) {
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The input is disabled while answering, which drops focus; hand it back for the follow-up.
+  useEffect(() => {
+    if (!asking) inputRef.current?.focus();
+  }, [asking]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -49,18 +57,16 @@ export default function ChatPanel({
           <EmptyState hasSources={hasSources} onSelectPrompt={handlePromptClick} />
         )}
 
-        {messages.map((m, i) =>
+        {messages.map((m) =>
           m.role === "user" ? (
-            <div key={i} className="flex justify-end">
+            <div key={m.id} className="flex justify-end">
               <div className="max-w-[85%] rounded-2xl rounded-tr-xs border border-orange-500/20 bg-gradient-to-br from-zinc-800 to-zinc-900 px-4.5 py-3 text-sm text-zinc-100 shadow-md">
                 <p className="leading-relaxed">{m.text}</p>
               </div>
             </div>
           ) : (
-            <div key={i} className="flex items-start gap-3">
-              <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/30 bg-orange-500/10 text-xs font-black text-orange-400 shadow-xs">
-                Y
-              </div>
+            <div key={m.id} className="flex items-start gap-3">
+              <Avatar />
               <div
                 className={`max-w-[90%] rounded-2xl rounded-tl-xs px-5 py-4 shadow-md transition-all ${
                   m.error
@@ -71,22 +77,24 @@ export default function ChatPanel({
                 {m.error ? (
                   <p className="text-sm leading-relaxed">{m.text}</p>
                 ) : (
-                  <CitationText answer={m.text} citations={m.citations ?? []} />
+                  <>
+                    <CitationText answer={m.text} citations={m.citations ?? []} />
+                    {!(asking && m === messages.at(-1)) && <CopyButton text={answerToMarkdown(m.text, m.citations ?? [])} />}
+                  </>
                 )}
               </div>
             </div>
           )
         )}
 
-        {asking && (
-          <div className="flex items-start gap-3">
-            <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/30 bg-orange-500/10 text-xs font-black text-orange-400">
-              Y
-            </div>
+        {/* Until the first streamed token arrives */}
+        {asking && messages.at(-1)?.role === "user" && (
+          <div className="flex items-start gap-3" role="status">
+            <Avatar />
             <div className="flex items-center gap-3 rounded-2xl rounded-tl-xs border border-zinc-800 bg-zinc-950/80 px-4 py-3 shadow-md">
               <span className="flex h-2 w-2 rounded-full bg-orange-500 animate-ping" />
               <p className="text-xs font-medium text-zinc-400">
-                Searching vector index & synthesizing cited answer…
+                Searching your sources…
               </p>
             </div>
           </div>
@@ -107,6 +115,8 @@ export default function ChatPanel({
       >
         <div className="relative flex items-center">
           <input
+            ref={inputRef}
+            aria-label="Ask a question"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
@@ -143,14 +153,12 @@ function EmptyState({
       <div className="relative mb-5 flex h-16 w-16 items-center justify-center">
         <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 opacity-20 blur-xl animate-pulse-glow" />
         <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-orange-500/30 bg-gradient-to-b from-zinc-800 to-zinc-900 shadow-xl shadow-orange-500/10">
-          <span className="text-2xl font-black text-orange-500">Y</span>
+          <span className="text-2xl font-black text-orange-500">C</span>
         </div>
       </div>
 
       <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-[11px] font-mono text-orange-400 mb-3">
         <span>⚡ Multimodal RAG Engine</span>
-        <span>·</span>
-        <span>Not Backed by YC</span>
       </div>
 
       <h2 className="text-xl font-bold tracking-tight text-zinc-100 sm:text-2xl">
@@ -159,7 +167,7 @@ function EmptyState({
       <p className="mt-2 max-w-md text-xs sm:text-sm text-zinc-400 leading-relaxed">
         {hasSources
           ? "Your sources are indexed in browser memory. Ask any question to retrieve cited excerpts linked to the exact timestamp."
-          : "Add YouTube videos, PDFs, audio recordings, or pasted text on the left. Cogniflow embeds them locally for sub-second, hallucination-free retrieval."}
+          : "Add YouTube videos, PDFs, audio recordings, or pasted text on the left. Cogniflow indexes them in your browser and answers with citations you can check."}
       </p>
 
       {/* Interactive Quick Prompts */}
@@ -193,8 +201,33 @@ function EmptyState({
         <span>·</span>
         <span>Deep-Linked Timestamps</span>
         <span>·</span>
-        <span>Cosine Vector Top-6</span>
+        <span>Hybrid Search</span>
       </div>
     </div>
+  );
+}
+
+function Avatar() {
+  return (
+    <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/30 bg-orange-500/10 text-xs font-black text-orange-400 shadow-xs">
+      C
+    </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() =>
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        })
+      }
+      className="mt-2 text-[11px] font-mono text-zinc-500 transition-colors hover:text-orange-400"
+    >
+      {copied ? "✓ Copied" : "Copy as Markdown"}
+    </button>
   );
 }
