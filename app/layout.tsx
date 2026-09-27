@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Render per request so Next.js can stamp the middleware's CSP nonce on its scripts.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Cogniflow AI — The Intelligence Layer for Media & Docs",
   description:
