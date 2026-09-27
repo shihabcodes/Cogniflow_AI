@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import CitationText from "./CitationText";
-import type { Citation } from "@/lib/types";
+import type { RetrievedChunk } from "@/lib/types";
 
 export interface Message {
   role: "user" | "assistant";
   text: string;
-  citations?: Citation[];
+  citations?: RetrievedChunk[];
   error?: boolean;
 }
 

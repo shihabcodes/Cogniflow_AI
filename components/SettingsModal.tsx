@@ -36,8 +36,7 @@ export default function SettingsModal({
     try {
       const res = await fetch("/api/test-key", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: inputKey.trim() || undefined }),
+        headers: inputKey.trim() ? { "x-gemini-key": inputKey.trim() } : {},
       });
       const data = await res.json();
       if (res.ok && data.ok) {

@@ -1,12 +1,5 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --yc-orange: #ff6600;
-    --yc-orange-hover: #ff7a1a;
-  }
-}
-
 /* Custom smooth dark scrollbars */
 * {
   scrollbar-width: thin;

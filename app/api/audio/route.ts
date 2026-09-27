@@ -1,43 +1,27 @@
 import { NextResponse } from "next/server";
 import { transcribeAudio } from "@/lib/gemini";
+import { errorResponse, geminiKey } from "@/lib/api";
 
 export const runtime = "nodejs";
 
 const ALLOWED = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a", "audio/mp3", "audio/webm", "video/mp4"];
 
 export async function POST(req: Request) {
+  const { key, denied } = geminiKey(req);
+  if (denied) return denied;
   try {
-    const apiKey = req.headers.get("x-gemini-key") || undefined;
-    if (!apiKey && !process.env.ALLOW_SERVER_KEY) {
-      return NextResponse.json(
-        { error: "Missing Gemini API key. Please enter your Gemini API key in Settings." },
-        { status: 401 }
-      );
-    }
-
-    const form = await req.formData();
-    const file = form.get("file");
-    if (!(file instanceof File))
-      return NextResponse.json({ error: "Missing file." }, { status: 400 });
+    const file = (await req.formData()).get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "Missing file." }, { status: 400 });
+    // Vercel rejects request bodies over ~4.5 MB before they reach this route.
+    if (file.size > 4_000_000)
+      return NextResponse.json({ error: "Audio file is larger than ~4 MB. Trim it or extract a section first." }, { status: 413 });
 
     const mime = ALLOWED.includes(file.type) ? file.type : "audio/mpeg";
-    if (file.size > 15_000_000)
-      return NextResponse.json(
-        { error: "Audio file larger than ~15 MB. Trim it, or extract a section first (long-file support is on the roadmap)." },
-        { status: 413 }
-      );
+    const transcript = (await transcribeAudio(Buffer.from(await file.arrayBuffer()).toString("base64"), mime, key)).trim();
+    if (!transcript) return NextResponse.json({ error: "Transcription came back empty." }, { status: 422 });
 
-    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const transcript = await transcribeAudio(base64, mime, apiKey);
-    if (!transcript.trim())
-      return NextResponse.json({ error: "Transcription came back empty." }, { status: 422 });
-
-    return NextResponse.json({
-      title: file.name.replace(/\.[a-z0-9]+$/i, ""),
-      text: transcript.trim(),
-    });
+    return NextResponse.json({ title: file.name.replace(/\.[a-z0-9]+$/i, ""), text: transcript });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to transcribe audio.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err, "Failed to transcribe audio.");
   }
 }

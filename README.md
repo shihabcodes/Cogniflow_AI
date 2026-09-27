@@ -19,7 +19,7 @@ ask ──► embed question ──► cosine top-k ──► grounded Gemini an
 
 ## Tech stack
 
-Next.js 15 (App Router) · TypeScript · Tailwind v4 · Gemini (`@google/genai` — `gemini-2.5-flash` + `gemini-embedding-001`) · `youtube-transcript` · `unpdf` · IndexedDB (`idb`)
+Next.js 15 (App Router) · TypeScript · Tailwind v4 · Gemini (`@google/genai` — `gemini-3.6-flash` + `gemini-embedding-001`) · `youtube-transcript` · `unpdf` · IndexedDB (`idb`)
 
 ## Run locally
 
@@ -42,7 +42,7 @@ npm run selftest
 2. Add environment variable `GOOGLE_API_KEY` (from Google AI Studio)
 3. Deploy — no database needed; storage is client-side
 
-Notes: Vercel's request-size cap means PDFs up to ~4 MB and audio up to ~15 MB locally (smaller on Vercel). Multi-notebook persistence and server-side vector storage are on the roadmap.
+Notes: Vercel's ~4.5 MB request cap limits PDF and audio uploads to ~4 MB. Set `ALLOW_SERVER_KEY=true` only if you want visitors without their own key to spend yours.
 
 ## Architecture
 
@@ -58,13 +58,15 @@ lib/
   vector.ts              cosine similarity + top-k
   store.ts               IndexedDB persistence (sources, chunks, vectors)
   citations.ts           answer → citation chips
+  gemini.ts              all Gemini calls, with model fallback
+  api.ts                 per-route key check + error helpers
 ```
 
 ## Roadmap
 
 - [ ] Multiple named notebooks
 - [ ] Optional Supabase persistence (sync across devices)
-- [ ] Long-audio support via Files API (currently ~15 MB inline limit)
+- [ ] Long-audio support via Files API (currently ~4 MB upload limit)
 - [ ] Answer streaming
 - [ ] Export answers with citations to Markdown
 
@@ -73,13 +75,9 @@ lib/
 - **Your sources stay yours** — documents, chunks, and embeddings are stored in your browser's IndexedDB. They are never uploaded to the server.
 - **Only excerpts travel** — when you ask a question, just the top-6 retrieved excerpts are sent to Google's Gemini API to compose the answer. The system prompt wraps excerpts in `<source_excerpt>` tags and instructs the model to treat them as passive data, never as instructions.
 - **No accounts, no analytics, no tracking.**
-- **Bring your own key** — your Gemini key is stored only in your browser's localStorage and sent per-request via the `x-gemini-key` header. Clear it anytime in Settings (⚙).
+- **Bring your own key** — your Gemini key is kept only in memory for the current tab (never saved to disk) and sent per-request via the `x-gemini-key` header. Reloading the page clears it.
 - **Server key is opt-in** — deployment owners decide via `ALLOW_SERVER_KEY`; without it, API routes refuse to run on the shared key. All API routes are per-IP rate limited, and standard security headers are set on every response.
 - **Found a vulnerability?** Please report it privately via GitHub's *Security → Report a vulnerability* rather than a public issue. See [SECURITY.md](SECURITY.md).
-
-## History
-
-Cogniflow started as a single-file YouTube summarizer (Streamlit + Gemini) — it still lives, archived, in [`legacy-streamlit/`](legacy-streamlit/).
 
 ## License
 

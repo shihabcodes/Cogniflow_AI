@@ -1,8 +1,8 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
-import { parseCitations } from "@/lib/citations";
-import type { Citation } from "@/lib/types";
+import { CITE_HREF_PREFIX, linkCitations } from "@/lib/citations";
+import type { RetrievedChunk } from "@/lib/types";
 
 /**
  * Renders a model answer: markdown for text, [n] markers become YC-themed citation
@@ -13,23 +13,32 @@ export default function CitationText({
   citations,
 }: {
   answer: string;
-  citations: Citation[];
+  citations: RetrievedChunk[];
 }) {
-  const tokens = parseCitations(answer);
   return (
     <div className="prose-answer">
-      {tokens.map((t, i) =>
-        t.kind === "text" ? (
-          <ReactMarkdown key={i}>{t.value}</ReactMarkdown>
-        ) : (
-          <CitationChip key={i} citation={citations[t.n - 1]} n={t.n} />
-        )
-      )}
+      <ReactMarkdown
+        components={{
+          a: ({ href, children }) => {
+            if (href?.startsWith(CITE_HREF_PREFIX)) {
+              const n = parseInt(href.slice(CITE_HREF_PREFIX.length), 10);
+              return <CitationChip citation={citations[n - 1]} n={n} />;
+            }
+            return (
+              <a href={href} target="_blank" rel="noreferrer">
+                {children}
+              </a>
+            );
+          },
+        }}
+      >
+        {linkCitations(answer)}
+      </ReactMarkdown>
     </div>
   );
 }
 
-function CitationChip({ citation, n }: { citation?: Citation; n: number }) {
+function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number }) {
   if (!citation) {
     return (
       <sup className="mx-0.5 inline-flex items-center rounded-md border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
@@ -49,7 +58,7 @@ function CitationChip({ citation, n }: { citation?: Citation; n: number }) {
       href={href ?? undefined}
       target="_blank"
       rel="noreferrer"
-      title={`${citation.sourceTitle}${hasTimestamp ? ` — at ${formatTime(citation.startTimeSec!)}` : ""}\n\n"${citation.snippet.slice(0, 180)}…"`}
+      title={`${citation.sourceTitle}${hasTimestamp ? ` — at ${formatTime(citation.startTimeSec!)}` : ""}\n\n"${citation.text.slice(0, 180)}…"`}
       className="group mx-0.5 inline-flex items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 align-super text-[10px] font-mono font-semibold text-orange-400 shadow-xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white"
     >
       <span>[{n}]</span>

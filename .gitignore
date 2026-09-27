@@ -1,7 +1,3 @@
-# python legacy app
-venv/
-__pycache__/
-
 # env
 .env
 .env*.local
