@@ -9,6 +9,15 @@ import { topK } from "@/lib/vector";
 import { deleteSource, loadSources, saveSource } from "@/lib/store";
 import type { RetrievedChunk, Source, SourceType } from "@/lib/types";
 
+async function readPdf(file: File): Promise<string> {
+  // Parsed in the browser: no upload, so no server size limit. Loaded on demand to keep the page bundle small.
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+  const { text } = await extractText(pdf, { mergePages: true });
+  if (!text.trim()) throw new Error("No extractable text found — this PDF is likely a scan (images only).");
+  return text;
+}
+
 export default function Home() {
   const [sources, setSources] = useState<Source[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -25,29 +34,35 @@ export default function Home() {
     });
   }, []);
 
-  async function post(path: string, body: FormData | object) {
+  async function request(path: string, body: FormData | object): Promise<Response> {
     const form = body instanceof FormData;
     const res = await fetch(path, {
       method: "POST",
       headers: { ...(form ? {} : { "Content-Type": "application/json" }), ...(apiKey ? { "x-gemini-key": apiKey } : {}) },
       body: form ? body : JSON.stringify(body),
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status}).`);
-    return json;
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Request failed (${res.status}).`);
+    return res;
   }
+  const post = async (path: string, body: FormData | object) => (await request(path, body)).json();
 
-  async function embed(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"): Promise<number[][]> {
+  async function embedDocuments(texts: string[]): Promise<number[][]> {
     const out: number[][] = [];
     for (let i = 0; i < texts.length; i += 96) {
-      out.push(...(await post("/api/embed", { texts: texts.slice(i, i + 96), taskType })).vectors);
+      out.push(...(await post("/api/embed", { texts: texts.slice(i, i + 96), taskType: "RETRIEVAL_DOCUMENT" })).vectors);
     }
     return out;
   }
 
-  function showError(err: unknown, fallback: string) {
-    setMessages((m) => [...m, { role: "assistant", text: err instanceof Error ? err.message : fallback, error: true }]);
+  function addMessage(m: Omit<Message, "id">): string {
+    const id = crypto.randomUUID();
+    setMessages((ms) => [...ms, { ...m, id }]);
+    return id;
   }
+  const updateMessage = (id: string, patch: Partial<Message>) =>
+    setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const showError = (err: unknown, fallback: string) =>
+    addMessage({ role: "assistant", text: err instanceof Error ? err.message : fallback, error: true });
 
   type Loaded = { title: string; texts: string[]; times?: number[]; url?: string; videoId?: string };
 
@@ -55,7 +70,7 @@ export default function Home() {
     setBusy(type);
     try {
       const { texts, times, ...meta } = await load();
-      const vectors = await embed(texts, "RETRIEVAL_DOCUMENT");
+      const vectors = await embedDocuments(texts);
       const source: Source = {
         id: crypto.randomUUID(),
         type,
@@ -87,9 +102,10 @@ export default function Home() {
 
   const handleAddFile = (file: File, kind: "pdf" | "audio") =>
     ingest(kind, async () => {
+      if (kind === "pdf") return { title: file.name.replace(/\.pdf$/i, ""), texts: chunkText(await readPdf(file)) };
       const form = new FormData();
       form.append("file", file);
-      const j = await post(`/api/${kind}`, form);
+      const j = await post("/api/audio", form);
       return { title: j.title, texts: chunkText(j.text) };
     });
 
@@ -101,11 +117,13 @@ export default function Home() {
   }
 
   async function handleAsk(question: string) {
-    setMessages((m) => [...m, { role: "user", text: question }]);
+    const history = messages.filter((m) => !m.error).slice(-6).map(({ role, text }) => ({ role, text: text.slice(0, 4000) }));
+    addMessage({ role: "user", text: question });
     setAsking(true);
     try {
-      const [queryVector] = await embed([question], "RETRIEVAL_QUERY");
-      const hits = topK(queryVector, sources, 6);
+      // Follow-ups are rewritten server-side into a standalone query; search with that.
+      const { vectors, query } = await post("/api/embed", { texts: [question], taskType: "RETRIEVAL_QUERY", history });
+      const hits = topK(vectors[0], query, sources, 6);
       if (!hits.length) throw new Error("No indexed sources found. Re-add a source (your browser storage may have been cleared).");
 
       const citations: RetrievedChunk[] = hits.map((h, i) => ({
@@ -117,8 +135,21 @@ export default function Home() {
         videoId: h.source.videoId,
         startTimeSec: h.chunk.startTimeSec,
       }));
-      const { answer } = await post("/api/ask", { question, chunks: citations });
-      setMessages((m) => [...m, { role: "assistant", text: answer, citations }]);
+      const res = await request("/api/ask", { question, chunks: citations, history });
+      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+      let text = "";
+      let id: string | undefined;
+      try {
+        for (let r = await reader.read(); !r.done; r = await reader.read()) {
+          text += r.value;
+          if (id) updateMessage(id, { text });
+          else id = addMessage({ role: "assistant", text, citations });
+        }
+      } catch (err) {
+        if (!id) throw err;
+        updateMessage(id, { text: `${text}\n\n_(The answer was cut off. Please ask again.)_` });
+      }
+      if (!id) throw new Error("The model returned an empty answer.");
     } catch (err) {
       showError(err, "Something went wrong.");
     } finally {
@@ -135,21 +166,15 @@ export default function Home() {
         <div className="h-[350px] w-[700px] rounded-full bg-gradient-to-b from-orange-500/10 via-amber-500/5 to-transparent blur-3xl opacity-80" />
       </div>
 
-      {/* Modern YC Startup Header */}
       <header className="mb-4 flex items-center justify-between border-b border-zinc-800/60 pb-3">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF6600] to-[#E65C00] font-black text-white text-sm shadow-lg shadow-orange-500/25">
-            Y
+            C
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-zinc-100 sm:text-lg">
-                Cogniflow <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">AI</span>
-              </h1>
-              <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-mono font-semibold text-orange-400">
-                Not Backed by YC
-              </span>
-            </div>
+            <h1 className="text-base font-bold tracking-tight text-zinc-100 sm:text-lg">
+              Cogniflow <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">AI</span>
+            </h1>
             <p className="text-[11px] text-zinc-400 hidden sm:block">
               The Intelligence Layer for Media & Documents — cited in real-time.
             </p>
@@ -157,17 +182,12 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Operational Status Badge */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/80 px-2.5 py-1 text-[11px] font-mono text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Operational</span>
-          </div>
-
           <button
             onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
             className="group flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-orange-500/40 hover:bg-zinc-800 hover:text-white"
           >
-            <span>⚙</span>
+            <span aria-hidden>⚙</span>
             <span className="hidden sm:inline">Settings</span>
             {apiKey && (
               <span className="h-1.5 w-1.5 rounded-full bg-orange-500 shadow-xs shadow-orange-500" title="Custom Gemini key active" />
@@ -178,9 +198,10 @@ export default function Home() {
             href="https://github.com/shihabcodes/Cogniflow_AI"
             target="_blank"
             rel="noreferrer"
+            aria-label="GitHub repository"
             className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-zinc-700 hover:bg-zinc-800 hover:text-white"
           >
-            <span>★</span>
+            <span aria-hidden>★</span>
             <span className="hidden sm:inline">GitHub</span>
           </a>
         </div>
@@ -217,10 +238,10 @@ export default function Home() {
           <span className="mx-1.5">·</span>
           <span>{CHUNK_OVERLAP_CHARS} overlap</span>
           <span className="mx-1.5">·</span>
-          <span>top-6 cosine</span>
+          <span>top-6 hybrid search</span>
         </div>
         <div className="hidden sm:block text-zinc-600">
-          Cogniflow AI · Proudly Not Backed by YC (Yet)
+          Cogniflow AI · open source
         </div>
       </footer>
     </main>

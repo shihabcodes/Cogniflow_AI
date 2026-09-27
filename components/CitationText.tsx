@@ -1,11 +1,11 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
-import { CITE_HREF_PREFIX, linkCitations } from "@/lib/citations";
+import { CITE_HREF_PREFIX, citationHref, formatTime, linkCitations } from "@/lib/citations";
 import type { RetrievedChunk } from "@/lib/types";
 
 /**
- * Renders a model answer: markdown for text, [n] markers become YC-themed citation
+ * Renders a model answer: markdown for text, [n] markers become citation
  * chips that link to the exact moment in a video (or show the source).
  */
 export default function CitationText({
@@ -46,11 +46,7 @@ function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number })
       </sup>
     );
   }
-  const href =
-    citation.videoId && citation.startTimeSec !== undefined
-      ? `https://www.youtube.com/watch?v=${citation.videoId}&t=${citation.startTimeSec}s`
-      : citation.sourceUrl;
-
+  const href = citationHref(citation);
   const hasTimestamp = citation.videoId && citation.startTimeSec !== undefined;
 
   return (
@@ -69,10 +65,4 @@ function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number })
       )}
     </a>
   );
-}
-
-function formatTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }

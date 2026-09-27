@@ -28,6 +28,13 @@ export default function SettingsModal({
     setTestResult(null);
   }, [apiKey, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   async function handleTestKey() {
@@ -72,17 +79,21 @@ export default function SettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 shadow-2xl backdrop-blur-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div role="dialog" aria-modal="true" aria-labelledby="settings-title" className="relative w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 shadow-2xl backdrop-blur-xl">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-5 w-5 items-center justify-center rounded bg-orange-500 text-[11px] font-black text-white">
-              Y
+              C
             </span>
-            <h2 className="text-base font-bold text-zinc-100">API Configuration (BYOK)</h2>
+            <h2 id="settings-title" className="text-base font-bold text-zinc-100">API Configuration (BYOK)</h2>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close settings"
             className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
             ✕
@@ -97,11 +108,14 @@ export default function SettingsModal({
 
         <div className="space-y-3.5">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-zinc-300">
+            <label htmlFor="gemini-key" className="mb-1.5 block text-xs font-semibold text-zinc-300">
               Gemini API Key
             </label>
             <div className="relative flex items-center">
               <input
+                id="gemini-key"
+                autoFocus
+                autoComplete="off"
                 type={showKey ? "text" : "password"}
                 value={inputKey}
                 onChange={(e) => {

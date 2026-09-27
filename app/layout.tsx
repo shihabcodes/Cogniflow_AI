@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Cogniflow AI — The Intelligence Layer for Media & Docs",
   description:
-    "Y Combinator-grade Multimodal RAG: Query YouTube videos, podcasts, PDFs, and notes with cited answers linked to the exact timestamp.",
+    "Ask YouTube videos, podcasts, PDFs, and notes questions and get cited answers linked to the exact timestamp.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

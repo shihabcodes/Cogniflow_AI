@@ -61,6 +61,7 @@ export default function SourcesPanel({
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
+              aria-pressed={tab === t.key}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                 tab === t.key
                   ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/25"
@@ -115,21 +116,29 @@ export default function SourcesPanel({
         {/* PDF & Audio Upload */}
         {(tab === "pdf" || tab === "audio") && (
           <div className="space-y-2.5">
-            <label className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-950/60 px-4 py-6 text-center transition-all duration-200 hover:border-orange-500/50 hover:bg-zinc-950/90">
+            <label
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const f = e.dataTransfer.files[0];
+                if (f && !busy) void onAddFile(f, tab);
+              }}
+              className="group flex cursor-pointer focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/20 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-950/60 px-4 py-6 text-center transition-all duration-200 hover:border-orange-500/50 hover:bg-zinc-950/90">
               <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-lg transition-transform group-hover:scale-110">
                 {tab === "pdf" ? "📄" : "🎙"}
               </div>
               <p className="text-xs font-medium text-zinc-300 group-hover:text-orange-400">
-                {tab === "pdf" ? "Select PDF document (≤ 4 MB)" : "Select audio file (≤ 4 MB, mp3/wav/m4a)"}
+                {busy === tab ? "Processing…" : tab === "pdf" ? "Select a PDF document" : "Select audio file (≤ 4 MB, mp3/wav/m4a)"}
               </p>
               <p className="mt-1 text-[10px] text-zinc-500">Drag and drop or browse files</p>
               <input
                 type="file"
                 accept={tab === "pdf" ? "application/pdf" : "audio/*,video/mp4"}
-                className="hidden"
+                className="sr-only"
+                disabled={!!busy}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) void onAddFile(f, tab).catch(() => undefined);
+                  if (f) void onAddFile(f, tab);
                   e.target.value = "";
                 }}
               />
@@ -137,7 +146,7 @@ export default function SourcesPanel({
             <p className="text-[11px] text-zinc-500 leading-normal">
               {tab === "audio"
                 ? "Audio is transcribed with Gemini and vector-indexed locally."
-                : "Text is extracted with unpdf and vector-embedded for sub-second retrieval."}
+                : "Text is extracted in your browser — the file itself is never uploaded."}
             </p>
           </div>
         )}
@@ -237,7 +246,7 @@ export default function SourcesPanel({
                   <button
                     onClick={() => onRemove(s.id)}
                     aria-label={`Remove ${s.title}`}
-                    className="rounded-md p-1 text-zinc-600 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400"
+                    className="rounded-md p-1 text-zinc-600 transition-all hover:bg-red-500/10 hover:text-red-400 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     ✕
                   </button>
