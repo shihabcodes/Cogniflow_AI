@@ -6,8 +6,15 @@ export interface Chunk {
   startTimeSec?: number; // seconds — YouTube only
 }
 
+export interface Notebook {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface Source {
   id: string;
+  notebookId?: string; // absent on sources saved before notebooks existed
   type: SourceType;
   title: string;
   url?: string; // YouTube only

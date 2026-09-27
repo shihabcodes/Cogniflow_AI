@@ -16,6 +16,7 @@ ask ──► embed question ──► cosine top-k ──► grounded Gemini an
 - **Local-first storage** — sources, chunks, and embeddings live in your browser's IndexedDB; only small excerpts are sent to the model when you ask
 - **Retrieval quality matters** — paragraph-aware chunking with overlap, task-typed embeddings, and hybrid search (vector similarity + BM25 keyword match, merged with reciprocal rank fusion)
 - **Real conversations** — answers stream in, and follow-ups like "what did he say after that?" are rewritten into standalone queries before searching
+- **Notebooks** — keep separate collections of sources, each with its own chat; questions only search the open notebook
 - **Portable answers** — copy any answer as Markdown with its cited sources and timestamp links
 - **Honest refusal** — if the sources don't contain the answer, the model says so instead of inventing one
 
@@ -57,7 +58,7 @@ app/
 lib/
   chunk.ts               paragraph-aware chunking + transcript grouping
   vector.ts              hybrid search: cosine + BM25, reciprocal rank fusion
-  store.ts               IndexedDB persistence (sources, chunks, vectors)
+  store.ts               IndexedDB persistence (notebooks, sources, chunks, vectors)
   citations.ts           answer → citation chips
   gemini.ts              all Gemini calls, with model fallback
   api.ts                 per-route key check + error helpers
@@ -65,7 +66,7 @@ lib/
 
 ## Roadmap
 
-- [ ] Multiple named notebooks
+- [x] Multiple named notebooks
 - [ ] Optional Supabase persistence (sync across devices)
 - [ ] Long-audio support via Files API (currently ~4 MB upload limit)
 - [x] Answer streaming

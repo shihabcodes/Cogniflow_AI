@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import SourcesPanel from "@/components/SourcesPanel";
 import ChatPanel, { type Message } from "@/components/ChatPanel";
 import SettingsModal from "@/components/SettingsModal";
+import NotebookBar from "@/components/NotebookBar";
 import { chunkText, CHUNK_TARGET_CHARS, CHUNK_OVERLAP_CHARS } from "@/lib/chunk";
 import { topK } from "@/lib/vector";
-import { deleteSource, loadSources, saveSource } from "@/lib/store";
-import type { RetrievedChunk, Source, SourceType } from "@/lib/types";
+import { deleteNotebook, deleteSource, loadAll, saveNotebook, saveSource } from "@/lib/store";
+import type { Notebook, RetrievedChunk, Source, SourceType } from "@/lib/types";
 
 async function readPdf(file: File): Promise<string> {
   // Parsed in the browser: no upload, so no server size limit. Loaded on demand to keep the page bundle small.
@@ -18,9 +19,20 @@ async function readPdf(file: File): Promise<string> {
   return text;
 }
 
+const ACTIVE_KEY = "cogniflow:notebook"; // last-open notebook, a per-browser convenience
+function readActive(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export default function Home() {
-  const [sources, setSources] = useState<Source[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [active, setActive] = useState("");
+  const [allSources, setAllSources] = useState<Source[]>([]);
+  const [chats, setChats] = useState<Record<string, Message[]>>({}); // per notebook, this tab only
   const [busy, setBusy] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -28,11 +40,25 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
-    void loadSources().then((s) => {
-      setSources(s);
+    void loadAll().then(({ notebooks, sources }) => {
+      setNotebooks(notebooks);
+      setAllSources(sources);
+      const last = readActive();
+      setActive(notebooks.some((n) => n.id === last) ? last! : notebooks[0].id);
       setLoaded(true);
     });
   }, []);
+
+  useEffect(() => {
+    try {
+      if (active) localStorage.setItem(ACTIVE_KEY, active);
+    } catch {
+      // storage unavailable (private mode); the default notebook opens next time
+    }
+  }, [active]);
+
+  const sources = allSources.filter((s) => s.notebookId === active);
+  const messages = chats[active] ?? [];
 
   async function request(path: string, body: FormData | object): Promise<Response> {
     const form = body instanceof FormData;
@@ -54,34 +80,38 @@ export default function Home() {
     return out;
   }
 
-  function addMessage(m: Omit<Message, "id">): string {
+  // Messages are addressed by notebook, so a reply streaming in after a switch lands in the right chat.
+  const setChat = (nb: string, fn: (ms: Message[]) => Message[]) => setChats((c) => ({ ...c, [nb]: fn(c[nb] ?? []) }));
+  function addMessage(nb: string, m: Omit<Message, "id">): string {
     const id = crypto.randomUUID();
-    setMessages((ms) => [...ms, { ...m, id }]);
+    setChat(nb, (ms) => [...ms, { ...m, id }]);
     return id;
   }
-  const updateMessage = (id: string, patch: Partial<Message>) =>
-    setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-  const showError = (err: unknown, fallback: string) =>
-    addMessage({ role: "assistant", text: err instanceof Error ? err.message : fallback, error: true });
+  const updateMessage = (nb: string, id: string, patch: Partial<Message>) =>
+    setChat(nb, (ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const showError = (nb: string, err: unknown, fallback: string) =>
+    addMessage(nb, { role: "assistant", text: err instanceof Error ? err.message : fallback, error: true });
 
   type Loaded = { title: string; texts: string[]; times?: number[]; url?: string; videoId?: string };
 
   async function ingest(type: SourceType, load: () => Promise<Loaded>) {
+    const nb = active;
     setBusy(type);
     try {
       const { texts, times, ...meta } = await load();
       const vectors = await embedDocuments(texts);
       const source: Source = {
         id: crypto.randomUUID(),
+        notebookId: nb,
         type,
         addedAt: Date.now(),
         ...meta,
         chunks: texts.map((text, i) => ({ text, vector: vectors[i], startTimeSec: times?.[i] })),
       };
       await saveSource(source);
-      setSources((prev) => [...prev, source]);
+      setAllSources((prev) => [...prev, source]);
     } catch (err) {
-      showError(err, "Ingestion failed.");
+      showError(nb, err, "Ingestion failed.");
     } finally {
       setBusy(null);
     }
@@ -113,12 +143,39 @@ export default function Home() {
 
   function handleRemove(id: string) {
     void deleteSource(id);
-    setSources((prev) => prev.filter((s) => s.id !== id));
+    setAllSources((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  async function handleCreateNotebook() {
+    const notebook = { id: crypto.randomUUID(), name: `Notebook ${notebooks.length + 1}`, createdAt: Date.now() };
+    await saveNotebook(notebook);
+    setNotebooks((n) => [...n, notebook]);
+    setActive(notebook.id);
+  }
+
+  async function handleRenameNotebook(name: string) {
+    const notebook = notebooks.find((n) => n.id === active);
+    if (!notebook || !name.trim()) return;
+    const renamed = { ...notebook, name: name.trim().slice(0, 80) };
+    await saveNotebook(renamed);
+    setNotebooks((n) => n.map((x) => (x.id === active ? renamed : x)));
+  }
+
+  async function handleDeleteNotebook() {
+    if (notebooks.length < 2) return;
+    const id = active;
+    await deleteNotebook(id, sources.map((s) => s.id));
+    const rest = notebooks.filter((n) => n.id !== id);
+    setNotebooks(rest);
+    setAllSources((prev) => prev.filter((s) => s.notebookId !== id));
+    setChats(({ [id]: _dropped, ...c }) => c);
+    setActive(rest[0].id);
   }
 
   async function handleAsk(question: string) {
+    const nb = active;
     const history = messages.filter((m) => !m.error).slice(-6).map(({ role, text }) => ({ role, text: text.slice(0, 4000) }));
-    addMessage({ role: "user", text: question });
+    addMessage(nb, { role: "user", text: question });
     setAsking(true);
     try {
       // Follow-ups are rewritten server-side into a standalone query; search with that.
@@ -142,16 +199,16 @@ export default function Home() {
       try {
         for (let r = await reader.read(); !r.done; r = await reader.read()) {
           text += r.value;
-          if (id) updateMessage(id, { text });
-          else id = addMessage({ role: "assistant", text, citations });
+          if (id) updateMessage(nb, id, { text });
+          else id = addMessage(nb, { role: "assistant", text, citations });
         }
       } catch (err) {
         if (!id) throw err;
-        updateMessage(id, { text: `${text}\n\n_(The answer was cut off. Please ask again.)_` });
+        updateMessage(nb, id, { text: `${text}\n\n_(The answer was cut off. Please ask again.)_` });
       }
       if (!id) throw new Error("The model returned an empty answer.");
     } catch (err) {
-      showError(err, "Something went wrong.");
+      showError(nb, err, "Something went wrong.");
     } finally {
       setAsking(false);
     }
@@ -209,15 +266,27 @@ export default function Home() {
 
       {loaded && (
         <div className="grid min-h-0 flex-1 gap-3.5 lg:grid-cols-[380px_1fr]">
-          <div className="min-h-0 max-lg:max-h-[42vh]">
-            <SourcesPanel
-              sources={sources}
-              busy={busy}
-              onAddYouTube={handleAddYouTube}
-              onAddFile={handleAddFile}
-              onAddText={handleAddText}
-              onRemove={handleRemove}
+          <div className="flex min-h-0 flex-col gap-3 max-lg:max-h-[48vh]">
+            <NotebookBar
+              notebooks={notebooks}
+              activeId={active}
+              sourceCount={sources.length}
+              disabled={!!busy || asking}
+              onSelect={setActive}
+              onCreate={handleCreateNotebook}
+              onRename={handleRenameNotebook}
+              onDelete={handleDeleteNotebook}
             />
+            <div className="min-h-0 flex-1">
+              <SourcesPanel
+                sources={sources}
+                busy={busy}
+                onAddYouTube={handleAddYouTube}
+                onAddFile={handleAddFile}
+                onAddText={handleAddText}
+                onRemove={handleRemove}
+              />
+            </div>
           </div>
           <div className="min-h-0">
             <ChatPanel messages={messages} asking={asking} hasSources={hasSources} onAsk={handleAsk} />
