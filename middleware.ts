@@ -1,84 +1,66 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-// Simple in-memory rate limiter per IP address
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 60; // 60 requests/min
+// Per-IP rate limit for /api/*. In-memory, so it's per serverless instance: a speed bump, not a hard cap.
+const WINDOW_MS = 60_000;
+const MAX_REQUESTS = 60;
+const hits = new Map<string, { count: number; reset: number }>();
 
-const ipRequestMap = new Map<string, { count: number; resetTime: number }>();
-
-// Cleanup stale IP entries every 5 minutes
-setInterval(() => {
+function rateLimited(req: NextRequest): NextResponse | null {
+  // x-real-ip is set by Vercel. Clients can prepend to x-forwarded-for, so only trust its LAST entry.
+  const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "local";
   const now = Date.now();
-  for (const [ip, record] of ipRequestMap.entries()) {
-    if (now > record.resetTime) {
-      ipRequestMap.delete(ip);
-    }
-  }
-}, 5 * 60 * 1000);
+  if (hits.size > 10_000) for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
 
-function withSecurityHeaders(res: NextResponse): NextResponse {
+  const entry = hits.get(ip);
+  if (!entry || now > entry.reset) {
+    hits.set(ip, { count: 1, reset: now + WINDOW_MS });
+    return null;
+  }
+  if (++entry.count <= MAX_REQUESTS) return null;
+  return NextResponse.json(
+    { error: "Too many requests. Please slow down." },
+    { status: 429, headers: { "Retry-After": String(Math.ceil((entry.reset - now) / 1000)) } }
+  );
+}
+
+function csp(nonce: string): string {
+  const dev = process.env.NODE_ENV === "development";
+  return [
+    "default-src 'self'",
+    // Only scripts carrying this request's nonce (and what they load) may run.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+export function middleware(req: NextRequest) {
+  const limited = req.nextUrl.pathname.startsWith("/api/") ? rateLimited(req) : null;
+
+  const nonce = btoa(crypto.randomUUID());
+  const policy = csp(nonce);
+  // Next.js reads the nonce from the request's CSP header and stamps it on its own scripts.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("content-security-policy", policy);
+
+  const res = limited ?? NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set("Content-Security-Policy", policy);
+  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   return res;
 }
 
-export function middleware(request: NextRequest) {
-  // Only apply rate limiting to API routes
-  if (request.nextUrl.pathname.startsWith("/api/")) {
-    // On Vercel, x-real-ip is set by the platform and cannot be spoofed by the
-    // client. x-forwarded-for may carry client-supplied entries, so trust only
-    // the LAST entry (the one the platform appends), never the first.
-    const ip =
-      request.headers.get("x-real-ip") ||
-      request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
-      "127.0.0.1";
-
-    const now = Date.now();
-    const current = ipRequestMap.get(ip);
-
-    if (!current || now > current.resetTime) {
-      ipRequestMap.set(ip, {
-        count: 1,
-        resetTime: now + RATE_LIMIT_WINDOW_MS,
-      });
-
-      const res = withSecurityHeaders(NextResponse.next());
-      res.headers.set("X-RateLimit-Limit", String(MAX_REQUESTS_PER_WINDOW));
-      res.headers.set("X-RateLimit-Remaining", String(MAX_REQUESTS_PER_WINDOW - 1));
-      return res;
-    }
-
-    if (current.count >= MAX_REQUESTS_PER_WINDOW) {
-      const res = NextResponse.json(
-        { error: "Too many requests. Please slow down." },
-        {
-          status: 429,
-          headers: {
-            "X-RateLimit-Limit": String(MAX_REQUESTS_PER_WINDOW),
-            "X-RateLimit-Remaining": "0",
-            "Retry-After": String(Math.ceil((current.resetTime - now) / 1000)),
-          },
-        }
-      );
-      return withSecurityHeaders(res);
-    }
-
-    current.count++;
-    const res = withSecurityHeaders(NextResponse.next());
-    res.headers.set("X-RateLimit-Limit", String(MAX_REQUESTS_PER_WINDOW));
-    res.headers.set(
-      "X-RateLimit-Remaining",
-      String(MAX_REQUESTS_PER_WINDOW - current.count)
-    );
-    return res;
-  }
-
-  return withSecurityHeaders(NextResponse.next());
-}
-
 export const config = {
-  matcher: ["/api/:path*"],
+  // Everything except static build assets.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

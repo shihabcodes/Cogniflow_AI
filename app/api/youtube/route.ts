@@ -7,20 +7,22 @@ import { errorMessage, errorResponse, geminiKey } from "@/lib/api";
 
 export const runtime = "nodejs";
 
+const VIDEO_ID = /^[\w-]{11}$/;
+
 function extractVideoId(input: string): string | null {
   const trimmed = input.trim();
-  if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+  if (VIDEO_ID.test(trimmed)) return trimmed;
+  let id: string | null | undefined;
   try {
     const url = new URL(trimmed);
-    if (url.hostname === "youtu.be") return url.pathname.slice(1) || null;
-    if (url.searchParams.get("v")) return url.searchParams.get("v");
     const parts = url.pathname.split("/");
     const i = parts.findIndex((p) => ["shorts", "embed", "live"].includes(p));
-    if (i >= 0 && parts[i + 1]) return parts[i + 1];
+    id = url.hostname === "youtu.be" ? parts[1] : url.searchParams.get("v") ?? (i >= 0 ? parts[i + 1] : null);
   } catch {
     return null;
   }
-  return null;
+  // Only a well-formed ID ever reaches the oEmbed / Gemini URLs.
+  return id && VIDEO_ID.test(id) ? id : null;
 }
 
 async function scrapeCaptions(videoId: string) {
@@ -32,8 +34,8 @@ async function scrapeCaptions(videoId: string) {
 
 export async function POST(req: Request) {
   try {
-    const { url } = (await req.json()) as { url?: string };
-    if (!url) return NextResponse.json({ error: "Missing url." }, { status: 400 });
+    const { url } = (await req.json()) as { url?: unknown };
+    if (typeof url !== "string" || !url) return NextResponse.json({ error: "Missing url." }, { status: 400 });
 
     const videoId = extractVideoId(url);
     if (!videoId) return NextResponse.json({ error: "Could not parse a YouTube video ID from that URL." }, { status: 400 });
