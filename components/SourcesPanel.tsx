@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AudioLines, CirclePlay, FileText, LoaderCircle, Type, Upload, X, type LucideIcon } from "lucide-react";
 import type { Source, SourceType } from "@/lib/types";
-import { BUTTON_PRIMARY, CARD, ICON_BUTTON, INPUT } from "./ui";
+import { BUTTON_PRIMARY, CARD, ICON_BUTTON, INPUT, LABEL } from "./ui";
 
 export type Busy = { kind: SourceType; status: string } | null;
 
@@ -39,19 +39,19 @@ export default function SourcesPanel({
   return (
     <aside className="flex h-full min-h-0 flex-col gap-3">
       <section className={`${CARD} p-4`} aria-labelledby="add-source">
-        <h2 id="add-source" className="mb-3 text-sm font-semibold">
-          Add a source
+        <h2 id="add-source" className={`${LABEL} mb-3`}>
+          // Add source
         </h2>
 
-        <div role="tablist" aria-label="Source type" className="mb-3 grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
+        <div role="tablist" aria-label="Source type" className="mb-3 grid grid-cols-4 gap-px border border-border bg-border">
           {TYPES.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               role="tab"
               aria-selected={tab === key}
               onClick={() => setTab(key)}
-              className={`flex min-h-10 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:flex-row sm:gap-1.5 ${
-                tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`flex min-h-11 cursor-pointer flex-col items-center justify-center gap-0.5 border-t-2 font-mono text-[11px] uppercase tracking-wider transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-text sm:flex-row sm:gap-1.5 ${
+                tab === key ? "border-accent bg-card text-foreground" : "border-transparent bg-background text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon className="size-4" aria-hidden />
@@ -100,7 +100,7 @@ export default function SourcesPanel({
                 const f = e.dataTransfer.files[0];
                 if (f && !busy) void onAddFile(f, tab);
               }}
-              className={`flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-accent ${
+              className={`flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-6 text-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-accent ${
                 dragging ? "border-accent bg-accent-soft" : "border-border hover:border-accent/60 hover:bg-muted"
               }`}
             >
@@ -158,22 +158,21 @@ export default function SourcesPanel({
       </section>
 
       <section className={`${CARD} flex min-h-0 flex-1 flex-col p-4`} aria-labelledby="sources-heading">
-        <h2 id="sources-heading" className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          Sources
-          <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs font-normal text-muted-foreground">{sources.length}</span>
+        <h2 id="sources-heading" className={`${LABEL} mb-2`}>
+          // Sources <span className="text-foreground">[{sources.length}]</span>
         </h2>
 
         <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto" aria-live="polite">
           {busy && (
-            <li className="flex items-center gap-3 rounded-lg bg-accent-soft p-2.5">
-              <LoaderCircle className="size-5 shrink-0 animate-spin text-accent" aria-hidden />
+            <li className="flex items-center gap-3 border-l-2 border-accent bg-accent-soft p-2.5">
+              <LoaderCircle className="size-5 shrink-0 animate-spin text-accent-text" aria-hidden />
               <span className="min-w-0 text-sm">{busy.status}</span>
             </li>
           )}
           {sources.map((s) => {
             const Icon = ICON[s.type];
             return (
-              <li key={s.id} className="group flex items-center gap-3 rounded-lg p-2.5 hover:bg-muted">
+              <li key={s.id} className="group flex items-center gap-3 border-l-2 border-transparent p-2.5 hover:border-accent hover:bg-muted">
                 <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium" title={s.title}>

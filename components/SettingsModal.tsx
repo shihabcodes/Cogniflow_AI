@@ -66,11 +66,11 @@ export default function SettingsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="w-full max-w-md rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-2xl"
+        className="w-full max-w-md border border-border bg-card p-5 shadow-2xl"
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 id="settings-title" className="flex items-center gap-2 text-lg font-semibold">
-            <KeyRound className="size-5 text-accent" aria-hidden />
+            <KeyRound className="size-5 text-accent-text" aria-hidden />
             Gemini API key
           </h2>
           <button onClick={onClose} aria-label="Close settings" className={ICON_BUTTON}>
@@ -111,7 +111,7 @@ export default function SettingsModal({
           href="https://aistudio.google.com/app/apikey"
           target="_blank"
           rel="noreferrer"
-          className="mt-2 inline-block text-sm text-accent underline-offset-2 hover:underline"
+          className="mt-2 inline-block text-sm text-accent-text underline-offset-2 hover:underline"
         >
           Get a free key at Google AI Studio →
         </a>
@@ -119,7 +119,7 @@ export default function SettingsModal({
         {result && (
           <p
             role="status"
-            className={`mt-3 rounded-lg px-3 py-2 text-sm ${result.ok ? "bg-accent-soft text-foreground" : "bg-destructive-soft text-destructive"}`}
+            className={`mt-3 px-3 py-2 text-sm ${result.ok ? "bg-accent-soft text-foreground" : "bg-destructive-soft text-destructive"}`}
           >
             {result.message}
           </p>
