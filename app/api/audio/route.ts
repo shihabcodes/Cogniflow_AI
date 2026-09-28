@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const ALLOWED = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a", "audio/mp3", "audio/webm", "video/mp4"];
 
 export async function POST(req: Request) {
-  const { key, denied } = geminiKey(req);
+  const { key, denied } = await geminiKey(req);
   if (denied) return denied;
   try {
     const file = (await req.formData()).get("file");

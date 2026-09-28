@@ -5,7 +5,7 @@ import { conversationText, errorResponse, geminiKey } from "@/lib/api";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const { key, denied } = geminiKey(req);
+  const { key, denied } = await geminiKey(req);
   if (denied) return denied;
   try {
     const { texts, taskType, history } = (await req.json()) as { texts?: string[]; taskType?: string; history?: unknown };

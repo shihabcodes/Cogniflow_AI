@@ -26,7 +26,9 @@ async function withFallback<T>(run: (model: string) => Promise<T>): Promise<T> {
     }
   }
   if (last?.status === 429)
-    throw new Error("Gemini rate limit or quota exceeded. If you're on a free AI Studio key, wait a minute or check https://aistudio.google.com/.");
+    throw new Error(
+      "Gemini's rate limit was hit. Wait a minute and try again, or add your own free key in Settings (aistudio.google.com)."
+    );
   if (last && last.status >= 500)
     throw new Error("Gemini is temporarily overloaded. Please try again in a moment.");
   throw last;

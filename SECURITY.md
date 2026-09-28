@@ -27,4 +27,4 @@ Please include reproduction steps and, if possible, the affected route or file. 
 | Sources, chunks, embeddings | IndexedDB (your browser) | Never uploaded to the server |
 | Retrieved excerpts (top-6 per question) | — | Sent to Google's Gemini API to compose the answer |
 | Your API key (BYOK) | Page memory (cleared on reload) | Sent per-request to Google via the app's API routes |
-| Server API key (owner) | Server env vars only | Used only when `ALLOW_SERVER_KEY` is enabled |
+| Server API key (owner) | Server env vars only | Used only when `NEXT_PUBLIC_SHARED_KEY` is enabled, capped per visitor per day |

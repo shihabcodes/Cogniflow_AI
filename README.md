@@ -45,7 +45,7 @@ npm run selftest
 2. Add environment variable `GOOGLE_API_KEY` (from Google AI Studio)
 3. Deploy — no database needed; storage is client-side
 
-Notes: PDFs have no size limit (they never leave the browser). Audio uploads are limited to ~4 MB by Vercel's request cap. Set `ALLOW_SERVER_KEY=true` only if you want visitors without their own key to spend yours.
+Notes: PDFs have no size limit (they never leave the browser). Audio uploads are limited to ~4 MB by Vercel's request cap. Set `NEXT_PUBLIC_SHARED_KEY=true` to let visitors without a key use yours, with a daily per-visitor cap (see `.env.example`).
 
 ## Architecture
 
@@ -78,7 +78,7 @@ lib/
 - **Only excerpts travel** — when you ask a question, just the top-6 retrieved excerpts are sent to Google's Gemini API to compose the answer. The system prompt wraps excerpts in `<source_excerpt>` tags and instructs the model to treat them as passive data, never as instructions.
 - **No accounts, no analytics, no tracking.**
 - **Bring your own key** — your Gemini key is kept only in memory for the current tab (never saved to disk) and sent per-request via the `x-gemini-key` header. Reloading the page clears it.
-- **Server key is opt-in** — deployment owners decide via `ALLOW_SERVER_KEY`; without it, API routes refuse to run on the shared key. All API routes are per-IP rate limited, and standard security headers are set on every response.
+- **Shared key is opt-in and capped** — deployment owners decide via `NEXT_PUBLIC_SHARED_KEY`; visitors on it get a daily request cap, tracked by a salted hash of their IP (no raw IPs stored). All API routes are per-IP rate limited, and standard security headers are set on every response.
 - **Found a vulnerability?** Please report it privately via GitHub's *Security → Report a vulnerability* rather than a public issue. See [SECURITY.md](SECURITY.md).
 
 ## License

@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
     // Tier 2: have Gemini watch the video. Spends quota, so it needs a key.
     if (!chunks.length) {
-      const { key, denied } = geminiKey(req);
+      const { key, denied } = await geminiKey(req);
       if (denied)
         return NextResponse.json(
           { error: `Could not scrape captions for this video (${scrapeError}). Add your Gemini API key in Settings so Gemini can transcribe it instead.` },

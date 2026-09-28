@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { clientIp } from "@/lib/api";
 
 // Per-IP rate limit for /api/*. In-memory, so it's per serverless instance: a speed bump, not a hard cap.
 const WINDOW_MS = 60_000;
@@ -6,8 +7,7 @@ const MAX_REQUESTS = 60;
 const hits = new Map<string, { count: number; reset: number }>();
 
 function rateLimited(req: NextRequest): NextResponse | null {
-  // x-real-ip is set by Vercel. Clients can prepend to x-forwarded-for, so only trust its LAST entry.
-  const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "local";
+  const ip = clientIp(req);
   const now = Date.now();
   if (hits.size > 10_000) for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
 
