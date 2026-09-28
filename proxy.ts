@@ -41,7 +41,7 @@ function csp(nonce: string): string {
   ].join("; ");
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const limited = req.nextUrl.pathname.startsWith("/api/") ? rateLimited(req) : null;
 
   const nonce = btoa(crypto.randomUUID());
