@@ -12,7 +12,7 @@ Please include reproduction steps and, if possible, the affected route or file. 
 
 ## In scope
 
-- This Next.js application and its API routes (`app/api/**`, `middleware.ts`, `lib/**`)
+- This Next.js application and its API routes (`app/api/**`, `proxy.ts`, `lib/**`)
 - Dependency vulnerabilities (Dependabot alerts are monitored and should stay at zero for critical/high)
 
 ## Out of scope
