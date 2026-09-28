@@ -1,21 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+// Fonts ship from our own origin (npm packages), so the CSP stays 'self' and builds need no network.
+import "@fontsource-variable/ibm-plex-sans";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
-// Render per request so Next.js can stamp the middleware's CSP nonce on its scripts.
+// Render per request so Next.js can stamp the proxy's CSP nonce on its scripts.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Cogniflow AI — The Intelligence Layer for Media & Docs",
+  title: "Cogniflow — ask your videos, podcasts & PDFs",
   description:
-    "Ask YouTube videos, podcasts, PDFs, and notes questions and get cited answers linked to the exact timestamp.",
+    "Add YouTube videos, podcasts, PDFs or notes and ask questions. Every answer cites its source, and video citations jump to the exact second.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1120" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased selection:bg-orange-500/30 selection:text-orange-200">
-        {children}
-      </body>
+    <html lang="en">
+      <body className="min-h-dvh font-sans antialiased selection:bg-accent/25">{children}</body>
     </html>
   );
 }

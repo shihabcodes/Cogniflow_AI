@@ -11,6 +11,7 @@ ask ──► embed question ──► cosine top-k ──► grounded Gemini an
 
 ## Features
 
+- **Try it instantly** — one click loads a demo notebook (a public-domain NASA video about the James Webb telescope) with suggested questions; no key or sign-up needed. Visitors get a daily free allowance on the shared key and can add their own free Gemini key for unlimited use
 - **Four source types** — YouTube links (transcript with timestamps), PDFs (parsed in your browser, never uploaded), audio files (Gemini-native transcription), pasted text
 - **Cited answers** — the model must ground every claim in `[n]` citations; chips link to the source, and for YouTube to the *exact second* (`&t=`)
 - **Local-first storage** — sources, chunks, and embeddings live in your browser's IndexedDB; only small excerpts are sent to the model when you ask

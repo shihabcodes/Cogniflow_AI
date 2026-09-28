@@ -1,87 +1,126 @@
 @import "tailwindcss";
 
-/* Custom smooth dark scrollbars */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 102, 0, 0.2) transparent;
+/* Semantic tokens; components use these names, never raw colors. Light and dark follow the OS. */
+@theme {
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
 }
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+
+:root {
+  color-scheme: light;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569; /* 7.2:1 on white */
+  --border: #e2e8f0;
+  --accent: #c2410c; /* 5.2:1 with white text */
+  --accent-foreground: #ffffff;
+  --accent-soft: #fff7ed;
+  --destructive: #b91c1c;
+  --destructive-soft: #fef2f2;
 }
-*::-webkit-scrollbar-track {
-  background: transparent;
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #0b1120;
+    --foreground: #f1f5f9;
+    --card: #111a2e;
+    --muted: #1b2438;
+    --muted-foreground: #94a3b8; /* 7.4:1 on background */
+    --border: #243049;
+    --accent: #fb923c; /* 8.6:1 with the dark foreground below */
+    --accent-foreground: #0b1120;
+    --accent-soft: #2a1a10;
+    --destructive: #f87171;
+    --destructive-soft: #2a1414;
+  }
 }
-*::-webkit-scrollbar-thumb {
-  background: rgba(255, 102, 0, 0.2);
-  border-radius: 9999px;
+
+body {
+  background: var(--background);
+  color: var(--foreground);
 }
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 102, 0, 0.4);
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Markdown answer typography */
 .prose-answer {
-  color: #e4e4e7;
-  font-size: 0.9375rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.65;
 }
-.prose-answer p {
-  margin: 0.6rem 0;
+.prose-answer > :first-child {
+  margin-top: 0;
 }
-.prose-answer ul, .prose-answer ol {
-  margin: 0.6rem 0;
-  padding-left: 1.4rem;
+.prose-answer > :last-child {
+  margin-bottom: 0;
+}
+.prose-answer p,
+.prose-answer ul,
+.prose-answer ol {
+  margin: 0.65rem 0;
+}
+.prose-answer ul,
+.prose-answer ol {
+  padding-left: 1.3rem;
 }
 .prose-answer ul {
-  list-style-type: disc;
+  list-style: disc;
 }
 .prose-answer ol {
-  list-style-type: decimal;
+  list-style: decimal;
 }
 .prose-answer li {
   margin: 0.3rem 0;
 }
 .prose-answer strong {
-  color: #ffffff;
   font-weight: 600;
 }
+.prose-answer a:not([data-cite]) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .prose-answer code {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fdba74;
-  padding: 0.15rem 0.4rem;
-  border-radius: 0.375rem;
-  font-size: 0.85em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--muted);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
 }
 .prose-answer pre {
-  background: #09090b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.875rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.85rem;
   border-radius: 0.5rem;
   overflow-x: auto;
-  margin: 0.75rem 0;
+}
+.prose-answer pre code {
+  background: none;
+  padding: 0;
 }
 .prose-answer blockquote {
-  border-left: 3px solid #ff6600;
-  padding-left: 0.875rem;
-  color: #a1a1aa;
-  margin: 0.75rem 0;
-  font-style: italic;
-}
-
-/* Shimmer & glow animations */
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
+  border-left: 3px solid var(--accent);
+  padding-left: 0.85rem;
+  color: var(--muted-foreground);
 }

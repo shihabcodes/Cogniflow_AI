@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { LogIn, LogOut } from "lucide-react";
 import type { Provider } from "@supabase/supabase-js";
+import { BUTTON } from "./ui";
 
 // Only list providers that are enabled in the Supabase dashboard.
 const PROVIDERS = (process.env.NEXT_PUBLIC_AUTH_PROVIDERS || "github").split(",").map((p) => p.trim()) as Provider[];
 const LABEL: Partial<Record<Provider, string>> = { github: "GitHub", google: "Google" };
-
-const BUTTON =
-  "flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-orange-500/40 hover:bg-zinc-800 hover:text-white";
 
 export default function AccountButton({
   email,
@@ -20,33 +19,44 @@ export default function AccountButton({
   onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   if (email)
     return (
-      <button onClick={onSignOut} className={BUTTON} title={`Signed in as ${email}`}>
-        <span className="hidden max-w-[160px] truncate sm:inline">{email}</span>
-        <span>Sign out</span>
+      <button onClick={onSignOut} className={BUTTON} title={`Signed in as ${email}`} aria-label={`Sign out (${email})`}>
+        <LogOut className="size-4" aria-hidden />
+        <span className="hidden max-w-40 truncate md:inline">{email}</span>
       </button>
     );
 
   return (
-    <div className="relative">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className={BUTTON}>
-        Sign in to sync
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu" aria-label="Sign in" className={BUTTON}>
+        <LogIn className="size-4" aria-hidden />
+        <span className="hidden sm:inline">Sign in</span>
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-56 space-y-1.5 rounded-xl border border-zinc-800 bg-zinc-900 p-2 shadow-2xl">
+        <div role="menu" className="absolute right-0 z-40 mt-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-2 shadow-xl">
           {PROVIDERS.map((p) => (
-            <button
-              key={p}
-              onClick={() => onSignIn(p)}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-xs text-zinc-200 hover:border-orange-500/40"
-            >
+            <button key={p} role="menuitem" onClick={() => onSignIn(p)} className={`${BUTTON} w-full justify-start`}>
               Continue with {LABEL[p] ?? p}
             </button>
           ))}
-          <p className="px-1 pt-1 text-[10px] leading-snug text-zinc-500">
-            Syncs your notebooks across devices. Without an account, everything stays in this browser.
+          <p className="px-1 pt-2 text-xs leading-relaxed text-muted-foreground">
+            Optional. Signing in syncs your notebooks across devices; without it, everything stays in this browser.
           </p>
         </div>
       )}

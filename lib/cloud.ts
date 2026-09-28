@@ -10,6 +10,20 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 /** False when the deployment has no Supabase project: the app then runs local-only. */
 export const cloudEnabled = Boolean(url && key);
 
+/**
+ * Whether a session might exist, checked without loading supabase-js: a stored
+ * token or an OAuth redirect (?code=) coming back. When false, the app can render
+ * this browser's notebooks immediately instead of waiting on auth.
+ */
+export function mightBeSignedIn(): boolean {
+  if (!cloudEnabled) return false;
+  try {
+    return new URLSearchParams(location.search).has("code") || Object.keys(localStorage).some((k) => /^sb-.*-auth-token$/.test(k));
+  } catch {
+    return true;
+  }
+}
+
 // supabase-js is ~65 kB, so it loads after first paint instead of in the page bundle.
 let client: Promise<SupabaseClient> | undefined;
 export function getSupabase(): Promise<SupabaseClient> {

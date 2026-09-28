@@ -1,10 +1,17 @@
 import { ApiError, GoogleGenAI, type ContentListUnion, type GenerateContentConfig } from "@google/genai";
 
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
-// gemini-flash-latest is Google's moving alias, so the last fallback never retires.
-// (gemini-2.5-flash is closed to new projects, so it's no longer listed.)
+// Free-tier daily quotas are per model: flash-lite allows 500 requests/day, the flash models 20.
+// So lite leads and the others add headroom. gemini-flash-latest is Google's moving alias,
+// so the last fallback never retires. (gemini-2.5-flash is closed to new projects.)
 const MODELS = [
-  ...new Set([process.env.GEMINI_MODEL || "gemini-3.6-flash", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-flash-latest"]),
+  ...new Set([
+    process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
+  ]),
 ];
 
 export function getAI(customKey?: string): GoogleGenAI {
@@ -29,9 +36,20 @@ async function withFallback<T>(run: (model: string) => Promise<T>): Promise<T> {
     throw new Error(
       "Gemini's rate limit was hit. Wait a minute and try again, or add your own free key in Settings (aistudio.google.com)."
     );
-  if (last && last.status >= 500)
-    throw new Error("Gemini is temporarily overloaded. Please try again in a moment.");
-  throw last;
+  // 5xx, or a bare 404 on every model (how Google sometimes answers a burst on a free key).
+  throw new Error("The AI service is busy right now. Please try again in a moment.");
+}
+
+// No "thinking": answering from supplied excerpts, rewriting a question, or transcribing doesn't need it,
+// and skipping it roughly halves latency. Some models reject the setting (400), so retry without it.
+const FAST = { thinkingConfig: { thinkingBudget: 0 } } satisfies GenerateContentConfig;
+async function fast<T>(call: (config: GenerateContentConfig) => Promise<T>, config: GenerateContentConfig = {}): Promise<T> {
+  try {
+    return await call({ ...FAST, ...config });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) return call(config);
+    throw err;
+  }
 }
 
 async function generate(
@@ -40,14 +58,17 @@ async function generate(
   config?: GenerateContentConfig
 ): Promise<{ text: string; model: string }> {
   const ai = getAI(apiKey);
-  return withFallback(async (model) => ({ text: (await ai.models.generateContent({ model, contents, config })).text ?? "", model }));
+  return withFallback(async (model) => ({
+    text: (await fast((c) => ai.models.generateContent({ model, contents, config: c }), config)).text ?? "",
+    model,
+  }));
 }
 
 /** Stream answer text. Model fallback only applies until the stream opens. */
 export async function streamAnswer(systemInstruction: string, prompt: string, apiKey?: string): Promise<AsyncGenerator<string>> {
   const ai = getAI(apiKey);
   const stream = await withFallback((model) =>
-    ai.models.generateContentStream({ model, contents: prompt, config: { systemInstruction, temperature: 0.2 } })
+    fast((c) => ai.models.generateContentStream({ model, contents: prompt, config: c }), { systemInstruction, temperature: 0.2 })
   );
   return (async function* () {
     for await (const chunk of stream) if (chunk.text) yield chunk.text;

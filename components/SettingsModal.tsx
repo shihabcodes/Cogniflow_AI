@@ -1,31 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { KeyRound, X } from "lucide-react";
+import { BUTTON, BUTTON_PRIMARY, ICON_BUTTON, INPUT } from "./ui";
 
-interface SettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  apiKey: string;
-  onSaveKey: (key: string) => void;
-}
+const SHARED_KEY = Boolean(process.env.NEXT_PUBLIC_SHARED_KEY);
 
 export default function SettingsModal({
   isOpen,
   onClose,
   apiKey,
   onSaveKey,
-}: SettingsModalProps) {
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  apiKey: string;
+  onSaveKey: (key: string) => void;
+}) {
   const [inputKey, setInputKey] = useState(apiKey);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     setInputKey(apiKey);
-    setTestResult(null);
+    setResult(null);
   }, [apiKey, isOpen]);
 
   useEffect(() => {
@@ -37,156 +36,122 @@ export default function SettingsModal({
 
   if (!isOpen) return null;
 
-  async function handleTestKey() {
+  async function testKey() {
     setTesting(true);
-    setTestResult(null);
+    setResult(null);
     try {
       const res = await fetch("/api/test-key", {
         method: "POST",
         headers: inputKey.trim() ? { "x-gemini-key": inputKey.trim() } : {},
       });
       const data = await res.json();
-      if (res.ok && data.ok) {
-        setTestResult({
-          ok: true,
-          message: `Key is active & verified! Connected to ${data.model || "Gemini"}.`,
-        });
-      } else {
-        setTestResult({
-          ok: false,
-          message: data.error || "Failed to validate API key.",
-        });
-      }
-    } catch (err) {
-      setTestResult({
-        ok: false,
-        message: err instanceof Error ? err.message : "Network error testing key.",
-      });
+      setResult(
+        res.ok && data.ok
+          ? { ok: true, message: `Works — connected to ${data.model}.` }
+          : { ok: false, message: data.error || "That key didn't work." }
+      );
+    } catch {
+      setResult({ ok: false, message: "Network error while testing the key." });
     } finally {
       setTesting(false);
     }
   }
 
-  function handleSave() {
-    onSaveKey(inputKey.trim());
-    onClose();
-  }
-
-  function handleClear() {
-    setInputKey("");
-    onSaveKey("");
-    setTestResult(null);
-  }
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div role="dialog" aria-modal="true" aria-labelledby="settings-title" className="relative w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 shadow-2xl backdrop-blur-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-orange-500 text-[11px] font-black text-white">
-              C
-            </span>
-            <h2 id="settings-title" className="text-base font-bold text-zinc-100">API Configuration (BYOK)</h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close settings"
-            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
-          >
-            ✕
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        className="w-full max-w-md rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-2xl"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="settings-title" className="flex items-center gap-2 text-lg font-semibold">
+            <KeyRound className="size-5 text-accent" aria-hidden />
+            Gemini API key
+          </h2>
+          <button onClick={onClose} aria-label="Close settings" className={ICON_BUTTON}>
+            <X className="size-5" aria-hidden />
           </button>
         </div>
 
-        <p className="mb-4 text-xs text-zinc-400 leading-relaxed">
-          Provide your personal Google Gemini API key. Stored{" "}
-          <strong className="text-zinc-200">strictly in your browser memory</strong> and used for
-          multimodal video ingestion, embeddings, and real-time generation.
+        <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+          {SHARED_KEY
+            ? "Optional. Cogniflow works out of the box on a shared free key with a daily limit per visitor. Add your own free key for unlimited use."
+            : "Cogniflow needs a Google Gemini API key. It's free to create."}{" "}
+          Your key stays in this tab&apos;s memory only — it&apos;s never saved.
         </p>
 
-        <div className="space-y-3.5">
-          <div>
-            <label htmlFor="gemini-key" className="mb-1.5 block text-xs font-semibold text-zinc-300">
-              Gemini API Key
-            </label>
-            <div className="relative flex items-center">
-              <input
-                id="gemini-key"
-                autoFocus
-                autoComplete="off"
-                type={showKey ? "text" : "password"}
-                value={inputKey}
-                onChange={(e) => {
-                  setInputKey(e.target.value);
-                  setTestResult(null);
-                }}
-                placeholder="AIzaSy..."
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 pr-16 text-sm text-zinc-200 placeholder-zinc-600 focus:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 text-xs text-zinc-400 hover:text-zinc-200 font-medium"
-              >
-                {showKey ? "Hide" : "Show"}
-              </button>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-orange-400 hover:text-orange-300 hover:underline"
-              >
-                Get free API key at Google AI Studio →
-              </a>
-              {apiKey && (
-                <span className="text-[10px] font-mono text-emerald-400">● Custom key active</span>
-              )}
-            </div>
-          </div>
+        <label htmlFor="gemini-key" className="mb-1.5 block text-sm font-medium">
+          Your key {SHARED_KEY && <span className="font-normal text-muted-foreground">(optional)</span>}
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="gemini-key"
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            type={showKey ? "text" : "password"}
+            value={inputKey}
+            onChange={(e) => {
+              setInputKey(e.target.value);
+              setResult(null);
+            }}
+            placeholder="Paste your key"
+            className={`${INPUT} font-mono text-sm`}
+          />
+          <button type="button" onClick={() => setShowKey(!showKey)} className={BUTTON} aria-pressed={showKey}>
+            {showKey ? "Hide" : "Show"}
+          </button>
+        </div>
+        <a
+          href="https://aistudio.google.com/app/apikey"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-block text-sm text-accent underline-offset-2 hover:underline"
+        >
+          Get a free key at Google AI Studio →
+        </a>
 
-          {testResult && (
-            <div
-              className={`rounded-xl p-3 text-xs ${
-                testResult.ok
-                  ? "border border-emerald-500/30 bg-emerald-950/40 text-emerald-300"
-                  : "border border-rose-500/30 bg-rose-950/40 text-rose-300"
-              }`}
+        {result && (
+          <p
+            role="status"
+            className={`mt-3 rounded-lg px-3 py-2 text-sm ${result.ok ? "bg-accent-soft text-foreground" : "bg-destructive-soft text-destructive"}`}
+          >
+            {result.message}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" disabled={testing || !inputKey.trim()} onClick={testKey} className={`${BUTTON} flex-1`}>
+            {testing ? "Testing…" : "Test key"}
+          </button>
+          {apiKey && (
+            <button
+              type="button"
+              onClick={() => {
+                setInputKey("");
+                onSaveKey("");
+                setResult(null);
+              }}
+              className={`${BUTTON} text-destructive`}
             >
-              {testResult.ok ? "✓ " : "✗ "}
-              {testResult.message}
-            </div>
+              Remove
+            </button>
           )}
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              disabled={testing}
-              onClick={handleTestKey}
-              className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800/80 py-2.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
-            >
-              {testing ? "Testing..." : "Test Key"}
-            </button>
-            {apiKey && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="rounded-xl border border-red-500/30 bg-red-950/20 px-3.5 py-2.5 text-xs font-medium text-red-400 hover:bg-red-950/40 transition-all"
-              >
-                Clear
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 hover:from-orange-600 hover:to-amber-600 active:scale-[0.99] transition-all"
-            >
-              Save Key
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onSaveKey(inputKey.trim());
+              onClose();
+            }}
+            className={`${BUTTON_PRIMARY} flex-1`}
+          >
+            {inputKey.trim() ? "Use this key" : "Done"}
+          </button>
         </div>
       </div>
     </div>

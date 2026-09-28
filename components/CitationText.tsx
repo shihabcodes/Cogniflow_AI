@@ -39,30 +39,35 @@ export default function CitationText({
 }
 
 function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number }) {
-  if (!citation) {
-    return (
-      <sup className="mx-0.5 inline-flex items-center rounded-md border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
-        [{n}]
-      </sup>
-    );
-  }
-  const href = citationHref(citation);
-  const hasTimestamp = citation.videoId && citation.startTimeSec !== undefined;
+  const chip = "mx-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 align-baseline font-mono text-xs font-medium";
+  if (!citation) return <span className={`${chip} bg-muted text-muted-foreground`}>[{n}]</span>;
 
+  const href = citationHref(citation);
+  const time = citation.videoId && citation.startTimeSec !== undefined ? formatTime(citation.startTimeSec) : undefined;
+  const label = `Source ${n}: ${citation.sourceTitle}${time ? `, at ${time}` : ""}`;
+  const body = (
+    <>
+      <span>{n}</span>
+      {time && <span className="opacity-80">· {time}</span>}
+    </>
+  );
+  if (!href)
+    return (
+      <span className={`${chip} bg-muted text-foreground`} title={`${label}\n\n“${citation.text.slice(0, 200)}…”`}>
+        {body}
+      </span>
+    );
   return (
     <a
-      href={href ?? undefined}
+      data-cite
+      href={href}
       target="_blank"
       rel="noreferrer"
-      title={`${citation.sourceTitle}${hasTimestamp ? ` — at ${formatTime(citation.startTimeSec!)}` : ""}\n\n"${citation.text.slice(0, 180)}…"`}
-      className="group mx-0.5 inline-flex items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 align-super text-[10px] font-mono font-semibold text-orange-400 shadow-xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white"
+      aria-label={`${label}${time ? " (opens the video at that moment)" : ""}`}
+      title={`${label}\n\n“${citation.text.slice(0, 200)}…”`}
+      className={`${chip} cursor-pointer bg-accent-soft text-accent ring-1 ring-accent/30 transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
     >
-      <span>[{n}]</span>
-      {hasTimestamp && (
-        <span className="opacity-75 group-hover:opacity-100">
-          {formatTime(citation.startTimeSec!)} ▸
-        </span>
-      )}
+      {body}
     </a>
   );
 }

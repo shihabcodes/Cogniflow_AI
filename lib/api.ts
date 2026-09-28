@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import type { Turn } from "./types";
 
-/** Requests per visitor per day on the shared key (each question is ~2 requests). */
-export const SHARED_DAILY_LIMIT = Number(process.env.SHARED_KEY_DAILY_LIMIT) || 100;
+/**
+ * Requests per visitor per day on the shared key (a question is 2–3 requests). The free tier
+ * allows ~500 answers and 1,000 embeddings a day in total, so this keeps one visitor from
+ * using up everyone's quota.
+ */
+export const SHARED_DAILY_LIMIT = Number(process.env.SHARED_KEY_DAILY_LIMIT) || 30;
 
 /** x-real-ip is set by Vercel. Clients can prepend to x-forwarded-for, so only trust its LAST entry. */
 export const clientIp = (req: Request) =>
