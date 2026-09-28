@@ -5,7 +5,7 @@ import { ArrowUp, Check, Copy, LoaderCircle, Sparkles } from "lucide-react";
 import CitationText from "./CitationText";
 import { answerToMarkdown } from "@/lib/citations";
 import type { RetrievedChunk } from "@/lib/types";
-import { BUTTON, BUTTON_PRIMARY, CARD } from "./ui";
+import { BUTTON, CARD, LABEL } from "./ui";
 
 export interface Message {
   id: string;
@@ -13,6 +13,7 @@ export interface Message {
   text: string;
   citations?: RetrievedChunk[];
   error?: boolean;
+  needsKey?: boolean; // show the "add your own key" shortcut
 }
 
 export default function ChatPanel({
@@ -22,6 +23,7 @@ export default function ChatPanel({
   suggestions,
   onAsk,
   onTryDemo,
+  onOpenSettings,
 }: {
   messages: Message[];
   asking: boolean;
@@ -29,6 +31,7 @@ export default function ChatPanel({
   suggestions: string[];
   onAsk: (q: string) => Promise<void>;
   onTryDemo?: () => void;
+  onOpenSettings: () => void;
 }) {
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -58,7 +61,8 @@ export default function ChatPanel({
         {messages.length === 0 &&
           (hasSources ? (
             <div className="mx-auto flex h-full max-w-xl flex-col justify-center py-8">
-              <h2 className="text-xl font-semibold">Ask anything about your sources</h2>
+              <p className={LABEL}>// Ready</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">Ask anything about your sources</h2>
               <p className="mt-1 text-sm text-muted-foreground">Every answer cites where it came from. Try one of these:</p>
               <div className="mt-5 grid gap-2">
                 {suggestions.map((s) => (
@@ -69,32 +73,14 @@ export default function ChatPanel({
               </div>
             </div>
           ) : (
-            <div className="mx-auto flex h-full max-w-xl flex-col justify-center py-8 text-center">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Ask your videos, podcasts and PDFs</h2>
-              <p className="mt-3 text-muted-foreground">
-                Add a source and ask questions. Every claim is cited, and video citations jump to the exact second.
-              </p>
+            <div className="mx-auto flex h-full max-w-md flex-col justify-center py-8 text-center">
+              <p className={LABEL}>// No sources yet</p>
+              <p className="mt-3 text-muted-foreground">Add a video, PDF, audio file or text on the left, then ask anything about it.</p>
               {onTryDemo && (
-                <div className="mt-6 flex flex-col items-center gap-2">
-                  <button onClick={onTryDemo} className={BUTTON_PRIMARY}>
-                    <Sparkles className="size-4" aria-hidden />
-                    Try the demo
-                  </button>
-                  <span className="text-xs text-muted-foreground">A NASA video about the James Webb telescope, ready to question</span>
-                </div>
+                <button onClick={onTryDemo} className={`${BUTTON} mx-auto mt-5`}>
+                  <Sparkles className="size-4" aria-hidden /> Or load the demo
+                </button>
               )}
-              <ul className="mt-8 grid gap-3 text-left text-sm sm:grid-cols-3">
-                {[
-                  ["Cited answers", "Every claim links back to its source."],
-                  ["Exact moments", "Video citations open at the right second."],
-                  ["Free, no sign-up", "Your sources stay in your browser."],
-                ].map(([title, body]) => (
-                  <li key={title} className="rounded-lg bg-muted p-3">
-                    <p className="font-medium">{title}</p>
-                    <p className="mt-0.5 text-muted-foreground">{body}</p>
-                  </li>
-                ))}
-              </ul>
             </div>
           ))}
 
@@ -102,17 +88,22 @@ export default function ChatPanel({
           {messages.map((m) =>
             m.role === "user" ? (
               <div key={m.id} className="flex justify-end">
-                <p className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5">{m.text}</p>
+                <p className="max-w-[85%] bg-muted px-4 py-2.5">{m.text}</p>
               </div>
             ) : (
               <div key={m.id} className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icon.svg" alt="" className="mt-0.5 size-7 shrink-0 rounded-md" />
+                <img src="/icon.svg" alt="" className="mt-0.5 size-7 shrink-0" />
                 <div className="min-w-0 flex-1">
                   {m.error ? (
-                    <p role="alert" className="rounded-lg bg-destructive-soft px-3 py-2 text-sm text-destructive">
-                      {m.text}
-                    </p>
+                    <div role="alert" className="border-l-2 border-destructive bg-destructive-soft px-3 py-2 text-sm text-destructive">
+                      <p>{m.text}</p>
+                      {m.needsKey && (
+                        <button onClick={onOpenSettings} className={`${BUTTON} mt-2 min-h-9 text-foreground`}>
+                          Add your API key
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <CitationText answer={m.text} citations={m.citations ?? []} />
@@ -137,7 +128,7 @@ export default function ChatPanel({
         }}
         className="border-t border-border p-3"
       >
-        <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-xl border border-border bg-background p-1.5 pl-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
+        <div className="mx-auto flex max-w-3xl items-center gap-2 border border-border bg-background p-1.5 pl-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
           <input
             ref={inputRef}
             aria-label="Ask a question"
@@ -150,7 +141,7 @@ export default function ChatPanel({
           <button
             disabled={!hasSources || asking || !input.trim()}
             aria-label="Send"
-            className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-accent text-accent-foreground transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center bg-accent text-accent-foreground transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           >
             <ArrowUp className="size-5" aria-hidden />
           </button>
@@ -170,7 +161,7 @@ function CopyButton({ text }: { text: string }) {
           setTimeout(() => setCopied(false), 1500);
         })
       }
-      className="mt-2 inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="mt-2 inline-flex min-h-8 cursor-pointer items-center gap-1.5 px-1.5 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
       {copied ? "Copied" : "Copy as Markdown"}
@@ -186,7 +177,7 @@ function Thinking() {
   }, []);
   return (
     <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
-      <LoaderCircle className="size-5 animate-spin text-accent" aria-hidden />
+      <LoaderCircle className="size-5 animate-spin text-accent-text" aria-hidden />
       {slow ? "Still working — Gemini is busy right now…" : "Searching your sources…"}
     </div>
   );

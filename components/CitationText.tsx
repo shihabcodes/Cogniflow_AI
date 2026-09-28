@@ -39,7 +39,7 @@ export default function CitationText({
 }
 
 function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number }) {
-  const chip = "mx-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 align-baseline font-mono text-xs font-medium";
+  const chip = "mx-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 align-baseline font-mono text-xs font-medium";
   if (!citation) return <span className={`${chip} bg-muted text-muted-foreground`}>[{n}]</span>;
 
   const href = citationHref(citation);
@@ -65,7 +65,7 @@ function CitationChip({ citation, n }: { citation?: RetrievedChunk; n: number })
       rel="noreferrer"
       aria-label={`${label}${time ? " (opens the video at that moment)" : ""}`}
       title={`${label}\n\n“${citation.text.slice(0, 200)}…”`}
-      className={`${chip} cursor-pointer bg-accent-soft text-accent ring-1 ring-accent/30 transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+      className={`${chip} cursor-pointer bg-accent-soft text-accent-text ring-1 ring-accent/30 transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
     >
       {body}
     </a>

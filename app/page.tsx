@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { Code, KeyRound, LoaderCircle } from "lucide-react";
+import { ArrowRight, Code, KeyRound, LoaderCircle } from "lucide-react";
+import Hero from "@/components/Hero";
 import SourcesPanel, { type Busy } from "@/components/SourcesPanel";
 import ChatPanel, { type Message } from "@/components/ChatPanel";
 import SettingsModal from "@/components/SettingsModal";
 import NotebookBar from "@/components/NotebookBar";
 import AccountButton from "@/components/AccountButton";
-import { BUTTON, ICON_BUTTON } from "@/components/ui";
+import { BUTTON, BUTTON_PRIMARY, ICON_BUTTON } from "@/components/ui";
 import { chunkText } from "@/lib/chunk";
 import { topK } from "@/lib/vector";
 import { localStore } from "@/lib/store";
@@ -61,6 +62,7 @@ export default function Home() {
   const [chats, setChats] = useState<Record<string, Message[]>>({}); // per notebook, this tab only
   const [busy, setBusy] = useState<Busy>(null);
   const [mobileView, setMobileView] = useState<"sources" | "chat">("chat"); // below lg, one panel at a time
+  const [workspace, setWorkspace] = useState(false); // leave the hero for an empty notebook
   const [asking, setAsking] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [apiKey, setApiKey] = useState("");
@@ -140,7 +142,10 @@ export default function Home() {
       headers: { ...(form ? {} : { "Content-Type": "application/json" }), ...(apiKey ? { "x-gemini-key": apiKey } : {}) },
       body: form ? body : JSON.stringify(body),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Request failed (${res.status}).`);
+    if (!res.ok)
+      throw Object.assign(new Error((await res.json().catch(() => ({}))).error ?? `Request failed (${res.status}).`), {
+        status: res.status,
+      });
     return res;
   }
   const post = async (path: string, body: FormData | object) => (await request(path, body)).json();
@@ -163,8 +168,14 @@ export default function Home() {
   }
   const updateMessage = (nb: string, id: string, patch: Partial<Message>) =>
     setChat(nb, (ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  // 401/429 mean "no key" or "shared quota used up": offer the bring-your-own-key path right there.
   const showError = (nb: string, err: unknown, fallback: string) =>
-    addMessage(nb, { role: "assistant", text: err instanceof Error ? err.message : fallback, error: true });
+    addMessage(nb, {
+      role: "assistant",
+      text: err instanceof Error ? err.message : fallback,
+      error: true,
+      needsKey: [401, 429].includes((err as { status?: number })?.status ?? 0),
+    });
   // Store calls can fail once they go over the network; surface that in the chat.
   async function guard(fn: () => Promise<void>) {
     const nb = active;
@@ -330,17 +341,32 @@ export default function Home() {
 
   const hasSources = sources.some((s) => s.chunks.length > 0);
   const suggestions = sources.some((s) => s.videoId === DEMO_VIDEO) ? DEMO_QUESTIONS : GENERAL_QUESTIONS;
+  const showHero = loaded && !sources.length && !messages.length && !workspace;
+
+  const NAV = "inline-flex min-h-10 cursor-pointer items-center gap-2 px-2 font-mono text-[13px] text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text";
 
   return (
-    <main className="mx-auto flex h-dvh max-w-7xl flex-col">
-      <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-3 sm:px-4">
-        <a href="/" className="flex items-center gap-2.5 rounded-lg text-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+    <main className="flex h-dvh flex-col">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-3 sm:px-6">
+        <a
+          href="/"
+          className="flex items-center gap-2.5 text-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="" className="size-8 rounded-lg" />
-          Cogniflow
+          <img src="/icon.svg" alt="" className="size-7" />
+          cogniflow
         </a>
 
-        <div className="flex items-center gap-1.5">
+        <nav className="flex items-center gap-1 sm:gap-3" aria-label="Main">
+          <a href="https://github.com/shihabcodes/Cogniflow_AI" target="_blank" rel="noreferrer" className={NAV} aria-label="Source code on GitHub">
+            <Code className="size-4 sm:hidden" aria-hidden />
+            <span className="hidden sm:inline">GitHub</span>
+          </a>
+          <button onClick={() => setSettingsOpen(true)} className={NAV} aria-label="Gemini API key settings">
+            <KeyRound className="size-4 sm:hidden" aria-hidden />
+            <span className="hidden sm:inline">{apiKey ? "Your key" : "API key"}</span>
+            {apiKey && <span className="size-1.5 rounded-full bg-accent" aria-hidden />}
+          </button>
           {supabase && authReady && (
             <AccountButton
               email={user?.email}
@@ -350,39 +376,36 @@ export default function Home() {
               onSignOut={() => void supabase!.auth.signOut()}
             />
           )}
-          <button onClick={() => setSettingsOpen(true)} className={BUTTON} aria-label="Gemini API key settings">
-            <KeyRound className="size-4" aria-hidden />
-            <span className="hidden sm:inline">{apiKey ? "Your key" : "API key"}</span>
-            {apiKey && <span className="size-2 rounded-full bg-accent" aria-hidden />}
-          </button>
-          <a
-            href="https://github.com/shihabcodes/Cogniflow_AI"
-            target="_blank"
-            rel="noreferrer"
-            className={ICON_BUTTON}
-            aria-label="Source code on GitHub"
-            title="Source code on GitHub"
-          >
-            <Code className="size-5" aria-hidden />
-          </a>
-        </div>
+          {showHero && (
+            <div className="hidden md:block">
+              <button onClick={() => void handleTryDemo()} disabled={!!busy} className={`${BUTTON_PRIMARY} min-h-10`}>
+                Try the demo <ArrowRight className="size-4" aria-hidden />
+              </button>
+            </div>
+          )}
+        </nav>
       </header>
 
       {!loaded ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground" role="status" aria-label="Loading">
           <LoaderCircle className="size-6 animate-spin" aria-hidden />
         </div>
+      ) : showHero ? (
+        <Hero onTryDemo={() => void handleTryDemo()} onAddSource={() => {
+          setWorkspace(true);
+          setMobileView("sources");
+        }} busy={!!busy} />
       ) : (
         <>
-          <div role="tablist" aria-label="View" className="mx-3 mt-3 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 lg:hidden">
+          <div role="tablist" aria-label="View" className="mx-3 mt-3 grid grid-cols-2 gap-px border border-border bg-border lg:hidden">
             {(["sources", "chat"] as const).map((v) => (
               <button
                 key={v}
                 role="tab"
                 aria-selected={mobileView === v}
                 onClick={() => setMobileView(v)}
-                className={`min-h-10 cursor-pointer rounded-md text-sm font-medium transition-colors duration-150 ${
-                  mobileView === v ? "bg-card shadow-sm" : "text-muted-foreground"
+                className={`min-h-10 cursor-pointer font-mono text-[13px] uppercase tracking-wider transition-colors duration-150 ${
+                  mobileView === v ? "bg-card text-foreground" : "bg-background text-muted-foreground"
                 }`}
               >
                 {v === "sources" ? `Sources (${sources.length})` : "Chat"}
@@ -390,10 +413,10 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="grid min-h-0 flex-1 gap-4 p-3 sm:p-4 lg:grid-cols-[360px_1fr]">
+          <div className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 gap-4 p-3 sm:p-4 lg:grid-cols-[360px_1fr]">
             <div className={`flex min-h-0 flex-col gap-3 ${mobileView === "chat" ? "max-lg:hidden" : ""}`}>
               {user && localCount > 0 && (
-                <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2 bg-accent-soft px-3 py-2 text-sm">
                   <span>
                     {localCount} source{localCount > 1 ? "s" : ""} saved in this browser only.
                   </span>
@@ -431,6 +454,7 @@ export default function Home() {
                 suggestions={suggestions}
                 onAsk={handleAsk}
                 onTryDemo={busy ? undefined : handleTryDemo}
+                onOpenSettings={() => setSettingsOpen(true)}
               />
             </div>
           </div>
@@ -439,7 +463,7 @@ export default function Home() {
 
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} apiKey={apiKey} onSaveKey={setApiKey} />
 
-      <footer className="shrink-0 px-4 pb-3 text-center text-xs text-muted-foreground">
+      <footer className="shrink-0 border-t border-border px-4 py-2.5 text-center font-mono text-[11px] text-muted-foreground">
         Open source ·{" "}
         <a href="https://github.com/shihabcodes" target="_blank" rel="noreferrer" className="underline-offset-2 hover:text-foreground hover:underline">
           built by @shihabcodes

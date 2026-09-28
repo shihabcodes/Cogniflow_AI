@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Semantic tokens; components use these names, never raw colors. Light and dark follow the OS. */
+/* Semantic tokens; components use these names, never raw colors. Dark only: black, one red accent, 1px lines. */
 @theme {
   --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -14,40 +14,25 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
   --color-destructive: var(--destructive);
   --color-destructive-soft: var(--destructive-soft);
 }
 
 :root {
-  color-scheme: light;
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569; /* 7.2:1 on white */
-  --border: #e2e8f0;
-  --accent: #c2410c; /* 5.2:1 with white text */
+  color-scheme: dark;
+  --background: #000000;
+  --foreground: #f4f4f5;
+  --card: #0a0a0a;
+  --muted: #151515;
+  --muted-foreground: #8d8d93; /* 6.6:1 on black */
+  --border: #232326;
+  --accent: #dc2626; /* 4.8:1 with white text */
   --accent-foreground: #ffffff;
-  --accent-soft: #fff7ed;
-  --destructive: #b91c1c;
-  --destructive-soft: #fef2f2;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #0b1120;
-    --foreground: #f1f5f9;
-    --card: #111a2e;
-    --muted: #1b2438;
-    --muted-foreground: #94a3b8; /* 7.4:1 on background */
-    --border: #243049;
-    --accent: #fb923c; /* 8.6:1 with the dark foreground below */
-    --accent-foreground: #0b1120;
-    --accent-soft: #2a1a10;
-    --destructive: #f87171;
-    --destructive-soft: #2a1414;
-  }
+  --accent-text: #f25555; /* red text on black, 6.6:1 */
+  --accent-soft: rgb(220 38 38 / 0.12);
+  --destructive: #f87171;
+  --destructive-soft: #2a0f0f;
 }
 
 body {
@@ -97,7 +82,7 @@ body {
   font-weight: 600;
 }
 .prose-answer a:not([data-cite]) {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -106,13 +91,11 @@ body {
   font-size: 0.875em;
   background: var(--muted);
   padding: 0.1rem 0.35rem;
-  border-radius: 0.3rem;
 }
 .prose-answer pre {
   background: var(--muted);
   border: 1px solid var(--border);
   padding: 0.85rem;
-  border-radius: 0.5rem;
   overflow-x: auto;
 }
 .prose-answer pre code {
@@ -123,4 +106,11 @@ body {
   border-left: 3px solid var(--accent);
   padding-left: 0.85rem;
   color: var(--muted-foreground);
+}
+
+/* Faint technical grid behind the page */
+.bg-grid {
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 30% 40%, black 10%, transparent 70%);
 }

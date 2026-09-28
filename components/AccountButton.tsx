@@ -49,7 +49,7 @@ export default function AccountButton({
         <span className="hidden sm:inline">Sign in</span>
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-40 mt-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-2 shadow-xl">
+        <div role="menu" className="absolute right-0 z-40 mt-2 w-[min(16rem,calc(100vw-1.5rem))] border border-border bg-card p-2 shadow-xl">
           {PROVIDERS.map((p) => (
             <button key={p} role="menuitem" onClick={() => onSignIn(p)} className={`${BUTTON} w-full justify-start`}>
               Continue with {LABEL[p] ?? p}
