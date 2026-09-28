@@ -1,7 +1,11 @@
 import { ApiError, GoogleGenAI, type ContentListUnion, type GenerateContentConfig } from "@google/genai";
 
 const EMBED_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
-const MODELS = [...new Set([process.env.GEMINI_MODEL || "gemini-3.6-flash", "gemini-3.6-flash", "gemini-2.5-flash"])];
+// gemini-flash-latest is Google's moving alias, so the last fallback never retires.
+// (gemini-2.5-flash is closed to new projects, so it's no longer listed.)
+const MODELS = [
+  ...new Set([process.env.GEMINI_MODEL || "gemini-3.6-flash", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-flash-latest"]),
+];
 
 export function getAI(customKey?: string): GoogleGenAI {
   const apiKey = customKey?.trim() || process.env.GOOGLE_API_KEY;
