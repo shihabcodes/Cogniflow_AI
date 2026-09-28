@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Notebook } from "@/lib/types";
+import { BUTTON, ICON_BUTTON, INPUT } from "./ui";
 
-const BUTTON =
-  "rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 transition-colors hover:border-zinc-700 hover:text-white disabled:opacity-40";
 
 export default function NotebookBar({
   notebooks,
@@ -44,10 +44,10 @@ export default function NotebookBar({
   }, [confirmDelete]);
 
   return (
-    <div className="flex items-center gap-1.5 rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-2 shadow-xl backdrop-blur-xl">
+    <div className="flex items-center gap-1">
       {renaming ? (
         <form
-          className="flex min-w-0 flex-1 gap-1.5"
+          className="flex min-w-0 flex-1 gap-1"
           onSubmit={(e) => {
             e.preventDefault();
             void onRename(name).then(() => setRenaming(false));
@@ -60,9 +60,11 @@ export default function NotebookBar({
             maxLength={80}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setRenaming(false)}
-            className="min-w-0 flex-1 rounded-lg border border-orange-500/40 bg-zinc-950 px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none"
+            className={`${INPUT} min-w-0 flex-1 py-2`}
           />
-          <button className={BUTTON}>Save</button>
+          <button className={ICON_BUTTON} aria-label="Save name">
+            <Check className="size-4" aria-hidden />
+          </button>
         </form>
       ) : (
         <>
@@ -71,7 +73,7 @@ export default function NotebookBar({
             value={activeId}
             disabled={disabled}
             onChange={(e) => onSelect(e.target.value)}
-            className="min-w-0 flex-1 truncate rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs font-semibold text-zinc-100 focus:border-orange-500/60 focus:outline-none disabled:opacity-60"
+            className={`${INPUT} min-w-0 flex-1 cursor-pointer truncate py-2 font-semibold`}
           >
             {notebooks.map((n) => (
               <option key={n.id} value={n.id}>
@@ -79,28 +81,31 @@ export default function NotebookBar({
               </option>
             ))}
           </select>
-          <button className={BUTTON} disabled={disabled} onClick={() => void onCreate()}>
-            + New
+          <button className={ICON_BUTTON} disabled={disabled} onClick={() => void onCreate()} aria-label="New notebook" title="New notebook">
+            <Plus className="size-4" aria-hidden />
           </button>
           <button
-            className={BUTTON}
+            className={ICON_BUTTON}
             disabled={disabled}
+            aria-label="Rename notebook"
+            title="Rename notebook"
             onClick={() => {
               setName(active?.name ?? "");
               setRenaming(true);
             }}
           >
-            Rename
+            <Pencil className="size-4" aria-hidden />
           </button>
-          {notebooks.length > 1 && (
-            <button
-              className={`${BUTTON} ${confirmDelete ? "border-red-500/50 text-red-400 hover:text-red-300" : ""}`}
-              disabled={disabled}
-              onClick={() => (confirmDelete ? void onDelete() : setConfirmDelete(true))}
-            >
-              {confirmDelete ? `Delete${sourceCount ? ` + ${sourceCount} source${sourceCount > 1 ? "s" : ""}` : ""}?` : "Delete"}
-            </button>
-          )}
+          {notebooks.length > 1 &&
+            (confirmDelete ? (
+              <button className={`${BUTTON} border-destructive text-destructive`} disabled={disabled} onClick={() => void onDelete()}>
+                Delete{sourceCount ? ` + ${sourceCount} source${sourceCount > 1 ? "s" : ""}` : ""}?
+              </button>
+            ) : (
+              <button className={ICON_BUTTON} disabled={disabled} onClick={() => setConfirmDelete(true)} aria-label="Delete notebook" title="Delete notebook">
+                <Trash2 className="size-4" aria-hidden />
+              </button>
+            ))}
         </>
       )}
     </div>
