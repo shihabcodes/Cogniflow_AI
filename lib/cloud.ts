@@ -5,7 +5,7 @@ import type { Store } from "./store";
 import type { Chunk, Notebook, Source } from "./types";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 /** False when the deployment has no Supabase project: the app then runs local-only. */
 export const cloudEnabled = Boolean(url && key);
