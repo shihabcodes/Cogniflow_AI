@@ -5,7 +5,7 @@ import { errorMessage, geminiKey } from "@/lib/api";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const { key, denied } = geminiKey(req);
+  const { key, denied } = await geminiKey(req);
   if (denied) return denied;
   try {
     return NextResponse.json({ ok: true, model: await testApiKey(key) });

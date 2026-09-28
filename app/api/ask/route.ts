@@ -19,7 +19,7 @@ Rules:
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export async function POST(req: Request) {
-  const { key, denied } = geminiKey(req);
+  const { key, denied } = await geminiKey(req);
   if (denied) return denied;
   try {
     const { question, chunks, history } = (await req.json()) as { question?: string; chunks?: RetrievedChunk[]; history?: unknown };
