@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import SourcesPanel from "@/components/SourcesPanel";
 import ChatPanel, { type Message } from "@/components/ChatPanel";
 import SettingsModal from "@/components/SettingsModal";
 import NotebookBar from "@/components/NotebookBar";
+import AccountButton from "@/components/AccountButton";
 import { chunkText, CHUNK_TARGET_CHARS, CHUNK_OVERLAP_CHARS } from "@/lib/chunk";
 import { topK } from "@/lib/vector";
-import { deleteNotebook, deleteSource, loadAll, saveNotebook, saveSource } from "@/lib/store";
+import { localStore } from "@/lib/store";
+import { cloudEnabled, cloudStore, getSupabase } from "@/lib/cloud";
 import type { Notebook, RetrievedChunk, Source, SourceType } from "@/lib/types";
 
 async function readPdf(file: File): Promise<string> {
@@ -38,16 +41,61 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Signed in: notebooks sync to Supabase. Signed out (or no Supabase configured): this browser only.
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(!cloudEnabled);
+  const [localCount, setLocalCount] = useState(0); // sources in this browser that could move into the account
+  const store = useMemo(() => (user && supabase ? cloudStore(supabase) : localStore), [user?.id, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    void loadAll().then(({ notebooks, sources }) => {
+    if (!cloudEnabled) return;
+    let unsubscribe = () => {};
+    void getSupabase().then(async (client) => {
+      setSupabase(client);
+      unsubscribe = client.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null)).data.subscription.unsubscribe;
+      setUser((await client.auth.getSession()).data.session?.user ?? null);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  async function reload() {
+    setLoaded(false);
+    try {
+      const { notebooks, sources } = await store.loadAll();
       setNotebooks(notebooks);
       setAllSources(sources);
+      setChats({});
       const last = readActive();
       setActive(notebooks.some((n) => n.id === last) ? last! : notebooks[0].id);
-      setLoaded(true);
+      setLocalCount(user ? (await localStore.loadAll()).sources.length : 0);
+    } catch (err) {
+      setNotebooks([{ id: "offline", name: "Unavailable", createdAt: 0 }]);
+      setActive("offline");
+      showError("offline", err, "Could not load your notebooks.");
+    }
+    setLoaded(true);
+  }
+
+  useEffect(() => {
+    if (authReady) void reload();
+  }, [authReady, store]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Copy this browser's notebooks into the signed-in account, then clear them locally. */
+  async function moveLocalToAccount() {
+    setBusy("import");
+    await guard(async () => {
+      const local = await localStore.loadAll();
+      const ids = new Map(local.notebooks.map((n) => [n.id, crypto.randomUUID()]));
+      for (const n of local.notebooks)
+        if (local.sources.some((s) => s.notebookId === n.id)) await store.saveNotebook({ ...n, id: ids.get(n.id)! });
+      for (const s of local.sources) await store.saveSource({ ...s, id: crypto.randomUUID(), notebookId: ids.get(s.notebookId!)! });
+      await localStore.clear();
+      await reload();
     });
-  }, []);
+    setBusy(null);
+  }
 
   useEffect(() => {
     try {
@@ -91,6 +139,15 @@ export default function Home() {
     setChat(nb, (ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   const showError = (nb: string, err: unknown, fallback: string) =>
     addMessage(nb, { role: "assistant", text: err instanceof Error ? err.message : fallback, error: true });
+  // Store calls can fail once they go over the network; surface that in the chat.
+  async function guard(fn: () => Promise<void>) {
+    const nb = active;
+    try {
+      await fn();
+    } catch (err) {
+      showError(nb, err, "Could not save your change.");
+    }
+  }
 
   type Loaded = { title: string; texts: string[]; times?: number[]; url?: string; videoId?: string };
 
@@ -108,7 +165,7 @@ export default function Home() {
         ...meta,
         chunks: texts.map((text, i) => ({ text, vector: vectors[i], startTimeSec: times?.[i] })),
       };
-      await saveSource(source);
+      await store.saveSource(source);
       setAllSources((prev) => [...prev, source]);
     } catch (err) {
       showError(nb, err, "Ingestion failed.");
@@ -141,36 +198,40 @@ export default function Home() {
 
   const handleAddText = (title: string, text: string) => ingest("text", async () => ({ title, texts: chunkText(text) }));
 
-  function handleRemove(id: string) {
-    void deleteSource(id);
-    setAllSources((prev) => prev.filter((s) => s.id !== id));
-  }
+  const handleRemove = (id: string) =>
+    guard(async () => {
+      await store.deleteSource(id);
+      setAllSources((prev) => prev.filter((s) => s.id !== id));
+    });
 
-  async function handleCreateNotebook() {
-    const notebook = { id: crypto.randomUUID(), name: `Notebook ${notebooks.length + 1}`, createdAt: Date.now() };
-    await saveNotebook(notebook);
-    setNotebooks((n) => [...n, notebook]);
-    setActive(notebook.id);
-  }
+  const handleCreateNotebook = () =>
+    guard(async () => {
+      const notebook = { id: crypto.randomUUID(), name: `Notebook ${notebooks.length + 1}`, createdAt: Date.now() };
+      await store.saveNotebook(notebook);
+      setNotebooks((n) => [...n, notebook]);
+      setActive(notebook.id);
+    });
 
-  async function handleRenameNotebook(name: string) {
-    const notebook = notebooks.find((n) => n.id === active);
-    if (!notebook || !name.trim()) return;
-    const renamed = { ...notebook, name: name.trim().slice(0, 80) };
-    await saveNotebook(renamed);
-    setNotebooks((n) => n.map((x) => (x.id === active ? renamed : x)));
-  }
+  const handleRenameNotebook = (name: string) =>
+    guard(async () => {
+      const notebook = notebooks.find((n) => n.id === active);
+      if (!notebook || !name.trim()) return;
+      const renamed = { ...notebook, name: name.trim().slice(0, 80) };
+      await store.saveNotebook(renamed);
+      setNotebooks((n) => n.map((x) => (x.id === active ? renamed : x)));
+    });
 
-  async function handleDeleteNotebook() {
-    if (notebooks.length < 2) return;
-    const id = active;
-    await deleteNotebook(id, sources.map((s) => s.id));
-    const rest = notebooks.filter((n) => n.id !== id);
-    setNotebooks(rest);
-    setAllSources((prev) => prev.filter((s) => s.notebookId !== id));
-    setChats(({ [id]: _dropped, ...c }) => c);
-    setActive(rest[0].id);
-  }
+  const handleDeleteNotebook = () =>
+    guard(async () => {
+      if (notebooks.length < 2) return;
+      const id = active;
+      await store.deleteNotebook(id, sources.map((s) => s.id));
+      const rest = notebooks.filter((n) => n.id !== id);
+      setNotebooks(rest);
+      setAllSources((prev) => prev.filter((s) => s.notebookId !== id));
+      setChats(({ [id]: _dropped, ...c }) => c);
+      setActive(rest[0].id);
+    });
 
   async function handleAsk(question: string) {
     const nb = active;
@@ -239,6 +300,16 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
+          {supabase && authReady && (
+            <AccountButton
+              email={user?.email}
+              onSignIn={(provider) =>
+                void supabase!.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
+              }
+              onSignOut={() => void supabase!.auth.signOut()}
+            />
+          )}
+
           <button
             onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
@@ -267,6 +338,20 @@ export default function Home() {
       {loaded && (
         <div className="grid min-h-0 flex-1 gap-3.5 lg:grid-cols-[380px_1fr]">
           <div className="flex min-h-0 flex-col gap-3 max-lg:max-h-[48vh]">
+            {user && localCount > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-[11px] text-orange-200">
+                <span>
+                  {localCount} source{localCount > 1 ? "s" : ""} saved in this browser only.
+                </span>
+                <button
+                  disabled={!!busy}
+                  onClick={() => void moveLocalToAccount()}
+                  className="shrink-0 rounded-lg bg-orange-500 px-2.5 py-1 font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  Move to my account
+                </button>
+              </div>
+            )}
             <NotebookBar
               notebooks={notebooks}
               activeId={active}

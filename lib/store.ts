@@ -16,7 +16,16 @@ async function db(): Promise<IDBPDatabase> {
   });
 }
 
-export async function loadAll(): Promise<{ notebooks: Notebook[]; sources: Source[] }> {
+/** Persistence used by the page: IndexedDB when signed out (below), Supabase when signed in (lib/cloud.ts). */
+export interface Store {
+  loadAll(): Promise<{ notebooks: Notebook[]; sources: Source[] }>;
+  saveSource(source: Source): Promise<void>;
+  deleteSource(id: string): Promise<void>;
+  saveNotebook(notebook: Notebook): Promise<void>;
+  deleteNotebook(id: string, sourceIds: string[]): Promise<void>;
+}
+
+async function loadAll(): Promise<{ notebooks: Notebook[]; sources: Source[] }> {
   try {
     const d = await db();
     let notebooks = ((await d.getAll("notebooks")) as Notebook[]).sort((a, b) => a.createdAt - b.createdAt);
@@ -33,20 +42,28 @@ export async function loadAll(): Promise<{ notebooks: Notebook[]; sources: Sourc
   }
 }
 
-export async function saveSource(source: Source): Promise<void> {
+async function saveSource(source: Source): Promise<void> {
   await (await db()).put("sources", source);
 }
 
-export async function deleteSource(id: string): Promise<void> {
+async function deleteSource(id: string): Promise<void> {
   await (await db()).delete("sources", id);
 }
 
-export async function saveNotebook(notebook: Notebook): Promise<void> {
+async function saveNotebook(notebook: Notebook): Promise<void> {
   await (await db()).put("notebooks", notebook);
 }
 
 /** Deletes the notebook and every source in it. */
-export async function deleteNotebook(id: string, sourceIds: string[]): Promise<void> {
+async function deleteNotebook(id: string, sourceIds: string[]): Promise<void> {
   const tx = (await db()).transaction(["notebooks", "sources"], "readwrite");
   await Promise.all([tx.objectStore("notebooks").delete(id), ...sourceIds.map((s) => tx.objectStore("sources").delete(s)), tx.done]);
 }
+
+/** Empties this browser's store (after its notebooks were moved into an account). */
+async function clear(): Promise<void> {
+  const tx = (await db()).transaction(["notebooks", "sources"], "readwrite");
+  await Promise.all([tx.objectStore("notebooks").clear(), tx.objectStore("sources").clear(), tx.done]);
+}
+
+export const localStore = { loadAll, saveSource, deleteSource, saveNotebook, deleteNotebook, clear };

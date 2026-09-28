@@ -32,7 +32,8 @@ function csp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self'",
+    // Signed-in sync talks to Supabase straight from the browser.
+    `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}`.trim(),
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
